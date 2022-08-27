@@ -174,6 +174,7 @@ class SalsaNext(nn.Module):
     def __init__(self, nclasses):
         super(SalsaNext, self).__init__()
         self.nclasses = nclasses
+        print(10*'-', '\n', f"Initializing {type(self).__name__} : {self.nclasses} classes")
 
         self.downCntx = ResContextBlock(5, 32)
         self.downCntx2 = ResContextBlock(32, 32)
@@ -190,9 +191,12 @@ class SalsaNext(nn.Module):
         self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
         self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
 
-        self.logits = nn.Conv2d(32, nclasses, kernel_size=(1, 1))
+        self.init_logits(nclasses)
 
-    def forward(self, x):
+    def init_logits(self, n_classes):
+        self.logits = nn.Conv2d(32, n_classes, kernel_size=(1, 1))
+
+    def encode_decode(self, x):
         downCntx = self.downCntx(x)
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
@@ -207,34 +211,23 @@ class SalsaNext(nn.Module):
         up3e = self.upBlock2(up4e, down2b)
         up2e = self.upBlock3(up3e, down1b)
         up1e = self.upBlock4(up2e, down0b)
+        return up1e
+
+    def forward(self, x):
+        up1e = self.encode_decode(x)
         logits = self.logits(up1e)
 
         logits = logits
         logits = F.softmax(logits, dim=1)
         return logits
 
-class IncrementalSalsaNext(nn.Module):
+class IncrementalSalsaNext(SalsaNext):
     def __init__(self, nclasses):
-        super(IncrementalSalsaNext, self).__init__()
-        self.nclasses = nclasses
+        super(IncrementalSalsaNext, self).__init__(nclasses)
 
-        self.downCntx = ResContextBlock(5, 32)
-        self.downCntx2 = ResContextBlock(32, 32)
-        self.downCntx3 = ResContextBlock(32, 32)
-
-        self.resBlock1 = ResBlock(32, 2 * 32, 0.2, pooling=True, drop_out=False)
-        self.resBlock2 = ResBlock(2 * 32, 2 * 2 * 32, 0.2, pooling=True)
-        self.resBlock3 = ResBlock(2 * 2 * 32, 2 * 4 * 32, 0.2, pooling=True)
-        self.resBlock4 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=True)
-        self.resBlock5 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=False)
-
-        self.upBlock1 = UpBlock(2 * 4 * 32, 4 * 32, 0.2)
-        self.upBlock2 = UpBlock(4 * 32, 4 * 32, 0.2)
-        self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
-        self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
-
+    def init_logits(self, n_classes):
         self.logits = nn.ModuleList(
-            [nn.Conv2d(32, n, kernel_size=(1, 1)) for n in nclasses])
+            [nn.Conv2d(32, n, kernel_size=(1, 1)) for n in n_classes])
     
     def init_new_classifier(self, device):
         cls = self.logits[-1]
@@ -251,25 +244,12 @@ class IncrementalSalsaNext(nn.Module):
         self.logits[0].bias[0].data.copy_(new_bias.squeeze(0))
 
     def forward(self, x):
-        downCntx = self.downCntx(x)
-        downCntx = self.downCntx2(downCntx)
-        downCntx = self.downCntx3(downCntx)
-
-        down0c, down0b = self.resBlock1(downCntx)
-        down1c, down1b = self.resBlock2(down0c)
-        down2c, down2b = self.resBlock3(down1c)
-        down3c, down3b = self.resBlock4(down2c)
-        down5c = self.resBlock5(down3c)
-
-        up4e = self.upBlock1(down5c,down3b)
-        up3e = self.upBlock2(up4e, down2b)
-        up2e = self.upBlock3(up3e, down1b)
-        up1e = self.upBlock4(up2e, down0b)
+        decode_result = self.encode_decode(x)
 
         out = []
         for mod in self.logits:
-            out.append(mod(up1e))
+            out.append(mod(decode_result))
         logits = torch.cat(out, dim=1)
 
         output = F.softmax(logits, dim=1)
-        return output, logits
+        return output, decode_result
