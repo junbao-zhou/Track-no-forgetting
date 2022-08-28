@@ -102,7 +102,7 @@ def get_label_frequencies(labels_count_dict: Dict):
     labels_counts_sum = sum(labels_count_dict.values())
     print(f'labels_counts_sum = {labels_counts_sum}')
     labels_frequencies = {key: (float(value) / float(labels_counts_sum))
-                                for key, value in labels_count_dict.items()}
+                          for key, value in labels_count_dict.items()}
     print(f'labels_frequencies = {labels_frequencies}')
     return labels_frequencies
 
@@ -171,7 +171,8 @@ class SemanticKitti(Dataset):
         self.label_files = []
 
         self.get_scan_label_files_from_file()
-        print(f"Using {len(self.scan_files)} scans from sequences {self.sequences}")
+        print(
+            f"Using {len(self.scan_files)} scans from sequences {self.sequences}")
 
     def get_scan_label_files_from_file(self):
         print(f"{type(self).__name__} getting scan and label files")
@@ -346,9 +347,9 @@ def read_sample_file(json_file_name: str, sequences: List[str], sample_number: i
         label_files = random.sample(label_files, sample_number)
 
     scan_files = [f"{seq}/{SCAN_FOLDER}/{file.replace(EXTENSIONS_LABEL[0], EXTENSIONS_SCAN[0])}"
-        for seq, file in label_files]
+                  for seq, file in label_files]
     label_files = [f"{seq}/{LABEL_FOLDER}/{file}"
-        for seq, file in label_files]
+                   for seq, file in label_files]
     return scan_files, label_files
 
 
