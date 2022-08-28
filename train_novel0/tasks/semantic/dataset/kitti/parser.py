@@ -1,5 +1,7 @@
+import json
 import os
 from socketserver import DatagramRequestHandler
+from typing import Dict, List
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -27,6 +29,9 @@ import tqdm
 EXTENSIONS_SCAN = ['.bin']
 EXTENSIONS_LABEL = ['.label']
 
+SCAN_FOLDER = 'velodyne'
+LABEL_FOLDER = 'labels'
+
 
 def is_scan(filename):
     return any(filename.endswith(ext) for ext in EXTENSIONS_SCAN)
@@ -34,6 +39,10 @@ def is_scan(filename):
 
 def is_label(filename):
     return any(filename.endswith(ext) for ext in EXTENSIONS_LABEL)
+
+
+def sequence_to_string(seq: int):
+    return f'{int(seq):02d}'
 
 
 def my_collate(batch):
@@ -68,6 +77,36 @@ def my_collate(batch):
     return data, project_mask, proj_labels
 
 
+def count_label_numbers(label_files, is_verbose=False):
+    if is_verbose:
+        print(f"label_files = {label_files}")
+    labels_count_dict = {}
+    print(f"counting {len(label_files)} labels")
+    for label_file in tqdm.tqdm(label_files):
+        label = np.fromfile(label_file, dtype=np.int32)
+        values, counts = np.unique(label, return_counts=True)
+        for i, v in enumerate(values):
+            if v > 259:
+                continue
+            if v in labels_count_dict:
+                labels_count_dict[v] += counts[i]
+            else:
+                labels_count_dict[v] = counts[i]
+    labels_count_dict = {k: v for k, v in sorted(
+        labels_count_dict.items(), key=lambda item: item[0])}
+    print(f'labels_count_dict = {labels_count_dict}')
+    return labels_count_dict
+
+
+def get_label_frequencies(labels_count_dict: Dict):
+    labels_counts_sum = sum(labels_count_dict.values())
+    print(f'labels_counts_sum = {labels_counts_sum}')
+    labels_frequencies = {key: (float(value) / float(labels_counts_sum))
+                                for key, value in labels_count_dict.items()}
+    print(f'labels_frequencies = {labels_frequencies}')
+    return labels_frequencies
+
+
 class SemanticKitti(Dataset):
 
     def __init__(self, root,    # directory where data is
@@ -84,6 +123,7 @@ class SemanticKitti(Dataset):
         # save deats
         self.root = os.path.join(root, "sequences")
         self.sequences = sequences
+        print(f"{type(self).__name__}'s sequences are {self.sequences}")
         self.labels = labels
         self.color_map = color_map
         self.learning_map = learning_map
@@ -110,7 +150,7 @@ class SemanticKitti(Dataset):
 
         # make sure directory exists
         if os.path.isdir(self.root):
-            print("Sequences folder exists! Using sequences from %s" % self.root)
+            print(f"Sequences folder exists! Using sequences from {self.root}")
         else:
             raise ValueError("Sequences folder doesn't exist! Exiting...")
 
@@ -131,19 +171,20 @@ class SemanticKitti(Dataset):
         self.label_files = []
 
         self.get_scan_label_files_from_file()
+        print(f"Using {len(self.scan_files)} scans from sequences {self.sequences}")
 
     def get_scan_label_files_from_file(self):
-        print(f"SemanticKitti getting scan and label files")
+        print(f"{type(self).__name__} getting scan and label files")
         # fill in with names, checking that all sequences are complete
         for seq in self.sequences:
             # to string
-            seq = '{0:02d}'.format(int(seq))
+            seq = sequence_to_string(seq)
 
-            print("parsing seq {}".format(seq))
+            print(f"parsing seq {seq}")
 
             # get paths for each
-            scan_path = os.path.join(self.root, seq, "velodyne")
-            label_path = os.path.join(self.root, seq, "labels")
+            scan_path = os.path.join(self.root, seq, SCAN_FOLDER)
+            label_path = os.path.join(self.root, seq, LABEL_FOLDER)
 
             # get files
             scan_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(
@@ -163,28 +204,8 @@ class SemanticKitti(Dataset):
         self.scan_files.sort()
         self.label_files.sort()
 
-        print("Using {} scans from sequences {}".format(len(self.scan_files),
-                                                        self.sequences))
-
-    def count_label_numbers(label_files, is_verbose=False):
-        if is_verbose:
-            print(f"label_files = {label_files}")
-        labels_count_dict = {}
-        print(f"counting {len(label_files)} labels")
-        for label_file in tqdm.tqdm(label_files):
-            label = np.fromfile(label_file, dtype=np.int32)
-            values, counts = np.unique(label, return_counts=True)
-            for i, v in enumerate(values):
-                if v > 259:
-                    continue
-                if v in labels_count_dict:
-                    labels_count_dict[v] += counts[i]
-                else:
-                    labels_count_dict[v] = counts[i]
-        labels_count_dict = {k: v for k, v in sorted(
-            labels_count_dict.items(), key=lambda item: item[0])}
-        print(f'labels_count_dict = {labels_count_dict}')
-        return labels_count_dict
+        labels_count_dict = count_label_numbers(self.label_files)
+        self.labels_frequencies = get_label_frequencies(labels_count_dict)
 
     def __getitem__(self, index):
         # get item in tensor shape
@@ -313,18 +334,22 @@ class SemanticKitti(Dataset):
         return lut[label]
 
 
-def read_sample_file(file_name: str, sample_number: int = None):
-    with open(file_name, "r") as f:
-        lines = f.readlines()
+def read_sample_file(json_file_name: str, sequences: List[str], sample_number: int = None):
+    with open(json_file_name, 'r') as f:
+        label_file_dict = json.load(f)
+    label_files = []
+    for seq in sequences:
+        seq = sequence_to_string(seq)
+        label_files.extend([(seq, file) for file in label_file_dict[seq]])
 
-    if sample_number is not None:
-        lines = random.sample(lines, sample_number)
+    if sample_number is not None and (sample_number < len(label_files)):
+        label_files = random.sample(label_files, sample_number)
 
-    scan_label_files = [
-        (line.split()[1], line.split()[2])
-        for line in lines
-    ]
-    return scan_label_files
+    scan_files = [f"{seq}/{SCAN_FOLDER}/{file.replace(EXTENSIONS_LABEL[0], EXTENSIONS_SCAN[0])}"
+        for seq, file in label_files]
+    label_files = [f"{seq}/{LABEL_FOLDER}/{file}"
+        for seq, file in label_files]
+    return scan_files, label_files
 
 
 class IncrementalSemanticKitti(SemanticKitti):
@@ -356,22 +381,24 @@ class IncrementalSemanticKitti(SemanticKitti):
         )
 
     def get_scan_label_files_from_file(self):
-        print(f"IncrementalSemanticKitti getting scan and label files")
+        print(f"{type(self).__name__} getting scan and label files")
         # fill in with names, checking that all sequences are complete
-        samplefiles = ["motorcyclist.txt", "bicyclist.txt", "car.txt",
-                       "person.txt"]
+        samplefiles = [
+            "motorcyclist",
+            "bicyclist", "car", "person",
+        ]
         samples = {}
         for name in samplefiles:
-            print(f"reading {name}")
-            scan_label_files = read_sample_file(
-                os.path.join(self.root, name), self.sample_number)
+            json_file_path = os.path.join(self.root, f"{name}.json")
+            print(f"reading {json_file_path}")
+            scan_files, label_files = read_sample_file(
+                json_file_path, self.sequences, self.sample_number)
             scan_files = [os.path.join(self.root, scan)
-                          for scan, _ in scan_label_files]
+                          for scan in scan_files]
             label_files = [os.path.join(self.root, label)
-                           for _, label in scan_label_files]
+                           for label in label_files]
 
-            SemanticKitti.count_label_numbers(label_files[:1], is_verbose=True)
-            exit(0)
+            # count_label_numbers(label_files, is_verbose=False)
             if name not in samples:
                 samples[name] = [scan_files, label_files]
 
@@ -383,15 +410,8 @@ class IncrementalSemanticKitti(SemanticKitti):
         self.scan_files.sort()
         self.label_files.sort()
 
-        labels_count_dict = SemanticKitti.count_label_numbers(self.label_files)
-        labels_counts_sum = sum(labels_count_dict.values())
-        print(f'labels_counts_sum = {labels_counts_sum}')
-        self.labels_frequencies = {key: (float(value) / float(labels_counts_sum))
-                                   for key, value in labels_count_dict.items()}
-        print(f'labels_frequencies = {self.labels_frequencies}')
-
-        print("Using {} scans from sequences {}".format(len(self.scan_files),
-                                                        self.sequences))
+        labels_count_dict = count_label_numbers(self.label_files)
+        self.labels_frequencies = get_label_frequencies(labels_count_dict)
 
 
 class Parser():
@@ -403,6 +423,8 @@ class Parser():
                  shuffle_train=True):  # shuffle training set?
         super(Parser, self).__init__()
 
+        print(10 * '-', '\n', f'Initializing {type(self).__name__}')
+
         # if I am training, get the dataset
         self.root = root
         self.DATA = datargs
@@ -410,10 +432,11 @@ class Parser():
 
         self.train_sequences = self.DATA["split"]["train"]
         self.valid_sequences = self.DATA["split"]["valid"]
-        self.test_sequences = None
+        self.test_sequences = self.DATA["split"]["test"]
         self.labels = self.DATA["labels"]
         self.color_map = self.DATA["color_map"]
         self.learning_map = self.DATA["learning_map"]
+        print(f"{type(self).__name__}.learning_map = {self.learning_map}")
         self.label_frequencies = self.DATA["label_frequencies"]
         self.learning_map_inv = self.DATA["learning_map_inv"]
         self.sensor = self.ARCH["dataset"]["sensor"]
@@ -428,7 +451,7 @@ class Parser():
         self.shuffle_train = shuffle_train
 
         self.update_class_map()
-        print(f"self.learning_map = {self.learning_map}")
+        print(f"{type(self).__name__}.learning_map = {self.learning_map}")
 
         # number of classes that matters is the one for xentropy
         self.nclasses = len(self.learning_map_inv)
@@ -508,7 +531,7 @@ class Parser():
 
             self.testloader = torch.utils.data.DataLoader(
                 self.test_dataset,
-                batch_size=self.batch_size,
+                batch_size=1,
                 shuffle=False,
                 num_workers=self.workers,
                 drop_last=True)
@@ -516,6 +539,7 @@ class Parser():
             self.testiter = iter(self.testloader)
 
     def update_class_map(self):
+        print(f"Updating labels")
 
         labels_new, labels_old = get_task_labels(
             self.task_name, self.task_step)
