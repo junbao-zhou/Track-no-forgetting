@@ -228,8 +228,8 @@ class SalsaNext(nn.Module):
         logits = self.logits(up1e)
 
         logits = logits
-        logits = F.softmax(logits, dim=1)
-        return logits
+        output = F.softmax(logits, dim=1)
+        return output, logits, up1e
 
 
 class IncrementalSalsaNext(SalsaNext):
@@ -264,4 +264,4 @@ class IncrementalSalsaNext(SalsaNext):
         logits = torch.cat(out, dim=1)
 
         output = F.softmax(logits, dim=1)
-        return output, decode_result
+        return output, logits, decode_result
