@@ -26,21 +26,26 @@ import tasks.semantic.modules.adf as adf
 from tasks.semantic.modules.distill_loss import MSEDistillLoss, KnowledgeDistillationLoss, UnbiasedKnowledgeDistillationLoss
 from tasks.semantic.task import get_task_labels, get_per_task_classes
 
+
 def keep_variance_fn(x):
     return x + 1e-3
+
 
 def one_hot_pred_from_label(y_pred, labels):
     y_true = torch.zeros_like(y_pred)
     ones = torch.ones_like(y_pred)
     indexes = [l for l in labels]
-    y_true[torch.arange(labels.size(0)), indexes] = ones[torch.arange(labels.size(0)), indexes]
+    y_true[torch.arange(labels.size(0)), indexes] = ones[torch.arange(
+        labels.size(0)), indexes]
 
     return y_true
+
 
 def save_to_log(logdir, logfile, message):
     with open(os.path.join(logdir, logfile), "a") as f:
         f.write(message + '\n')
     return
+
 
 def print_save_to_log(logdir, logfile, message):
     print(message)
@@ -51,11 +56,11 @@ def save_checkpoint(to_save, logdir, suffix=""):
     # Save the weights
     torch.save(to_save, os.path.join(logdir, f"SalsaNext{suffix}"))
 
+
 def convert_model_to_parallel_sync_batchnorm(model: nn.Module):
     model = nn.DataParallel(model)  # spread in gpus
     model = convert_model(model).cuda()  # sync batchnorm
     return model
-
 
 
 class Trainer():
@@ -91,24 +96,31 @@ class Trainer():
                                        self.DATA["name"] + '/parser.py')
 
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            batch_size = self.ARCH["train"]["batch_size_per_GPU"] * torch.cuda.device_count()
-            print_save_to_log(self.log, 'log.txt', f"gpu number = {torch.cuda.device_count()}")
-            print_save_to_log(self.log, 'log.txt', f"batch_size = {batch_size}")
+            batch_size = self.ARCH["train"]["batch_size_per_GPU"] * \
+                torch.cuda.device_count()
+            print_save_to_log(
+                self.log, 'log.txt', f"gpu number = {torch.cuda.device_count()}")
+            print_save_to_log(
+                self.log, 'log.txt', f"batch_size = {batch_size}")
 
-        self.parser = parserModule.Parser(root=self.datadir,
-                                          datargs = self.DATA,
-                                          archargs = self.ARCH,
-                                          batch_size = batch_size,
-                                          is_test = False,
-                                          gt=True,
-                                          shuffle_train=True)
+        self.parser = parserModule.Parser(
+            root=self.datadir,
+            datargs=self.DATA,
+            archargs=self.ARCH,
+            batch_size=batch_size,
+            is_test=False,
+            gt=True,
+            shuffle_train=True,
+        )
 
         # weights for loss (and bias)
         epsilon_w = self.ARCH["train"]["epsilon_w"]
         print(f'label_frequencies = {self.parser.xentropy_label_frequencies}')
         # exit()
-        self.loss_w = 1 / (self.parser.xentropy_label_frequencies + epsilon_w)  # get weights
-        for x_cl, w in enumerate(self.loss_w):  # ignore the ones necessary to ignore
+        self.loss_w = 1 / \
+            (self.parser.xentropy_label_frequencies + epsilon_w)  # get weights
+        # ignore the ones necessary to ignore
+        for x_cl, w in enumerate(self.loss_w):
             if DATA["learning_ignore"][x_cl]:
                 # don't weigh
                 self.loss_w[x_cl] = 0
@@ -117,25 +129,32 @@ class Trainer():
 
         self.model_old = None
         with torch.no_grad():
-            nclasses = get_per_task_classes(self.ARCH["train"]["task_name"], self.ARCH["train"]['task_step'])
+            nclasses = get_per_task_classes(
+                self.ARCH["train"]["task_name"], self.ARCH["train"]['task_step'])
             self.model = IncrementalSalsaNext(nclasses)
             # exit(0)
-            step = self.ARCH["train"]["task_step"] 
+            step = self.ARCH["train"]["task_step"]
             if step > 0:
                 self.model_old = IncrementalSalsaNext([nclasses[step-1]])
 
         base_model_path = self.ARCH["train"]["base_model"]
         if os.path.exists(base_model_path):
             torch.nn.Module.dump_patches = True
-            w_dict = torch.load(base_model_path + "/SalsaNext_valid_best",
-                                map_location=lambda storage, loc: storage)
+            w_dict = torch.load(
+                os.path.join(base_model_path, "SalsaNext_valid_best"),
+                map_location=lambda storage, loc: storage,
+            )
             if self.model_old is not None:
                 print(f'load state dict to old model')
-                self.model_old.load_state_dict(w_dict['state_dict'], strict=True)
+                self.model_old.load_state_dict(
+                    w_dict['state_dict'], strict=True)
 
             print(f'load state dict to model')
-            w_dict = torch.load(self.ARCH["train"]["novel_model"] + "/SalsaNext_valid_best",
-                                map_location=lambda storage, loc: storage)
+            w_dict = torch.load(
+                os.path.join(
+                    self.ARCH["train"]["novel_model"] + "SalsaNext_valid_best"),
+                map_location=lambda storage, loc: storage,
+            )
             self.model.load_state_dict(w_dict['state_dict'], strict=False)
 
         self.tb_logger = Logger(self.log + "/tb")
@@ -145,7 +164,8 @@ class Trainer():
         self.multi_gpu = False
         self.n_gpus = 0
         self.model_single = self.model
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
         print("Training in device: ", self.device)
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
             print("cuda is available")
@@ -164,12 +184,14 @@ class Trainer():
             self.multi_gpu = True
             self.n_gpus = torch.cuda.device_count()
             if self.model_old is not None:
-                self.model_old = convert_model_to_parallel_sync_batchnorm(self.model_old)
+                self.model_old = convert_model_to_parallel_sync_batchnorm(
+                    self.model_old)
 
         self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
         self.ls = Lovasz_softmax(ignore=0).to(self.device)
         print(f'Distill Loss : {self.ARCH["train"]["distill_loss_name"]}')
-        self.distill = eval(self.ARCH["train"]["distill_loss_name"])().to(self.device)
+        self.distill = eval(
+            self.ARCH["train"]["distill_loss_name"])().to(self.device)
 
         self.loss_coefficient = self.ARCH["train"]["loss_coefficient"]
 
@@ -178,10 +200,12 @@ class Trainer():
         #     self.criterion = nn.DataParallel(self.criterion).cuda()  # spread in gpus
         #     self.ls = nn.DataParallel(self.ls).cuda()
         #     self.distill = nn.DataParallel(self.distill).cuda()
-        self.optimizer = optim.SGD([{'params': self.model.parameters()}],
-                                   lr=self.ARCH["train"]["lr"],
-                                   momentum=self.ARCH["train"]["momentum"],
-                                   weight_decay=self.ARCH["train"]["w_decay"])
+        self.optimizer = optim.SGD(
+            [{'params': self.model.parameters()}],
+            lr=self.ARCH["train"]["lr"],
+            momentum=self.ARCH["train"]["momentum"],
+            weight_decay=self.ARCH["train"]["w_decay"],
+        )
 
         # Use warmup learning rate
         # post decay and step sizes come in epochs and we want it in steps
@@ -200,13 +224,14 @@ class Trainer():
                 par.requires_grad = False
             self.model_old.eval()
 
-
     def calculate_estimate(self, epoch, iter):
-        estimate = int((self.data_time_t.avg + self.batch_time_t.avg) * \
-                       (self.parser.get_train_size() * self.ARCH['train']['max_epochs'] - (
-                               iter + 1 + epoch * self.parser.get_train_size()))) + \
-                   int(self.batch_time_e.avg * self.parser.get_valid_size() * (
-                           self.ARCH['train']['max_epochs'] - (epoch)))
+        estimate = int(
+            (self.data_time_t.avg + self.batch_time_t.avg) *
+            (self.parser.get_train_size() * self.ARCH['train']['max_epochs'] -
+             (iter + 1 + epoch * self.parser.get_train_size()))) + \
+            int(
+                self.batch_time_e.avg * self.parser.get_valid_size() * (
+                    self.ARCH['train']['max_epochs'] - (epoch)))
         return str(datetime.timedelta(seconds=estimate))
 
     @staticmethod
@@ -228,12 +253,22 @@ class Trainer():
         out_img = cv2.applyColorMap(
             depth, Trainer.get_mpl_colormap('viridis')) * mask[..., None]
         # make label prediction
-        pred_color = color_fn((pred * mask).astype(np.int32)) 
+        pred_color = color_fn((pred * mask).astype(np.int32))
         out_img = np.concatenate([out_img, pred_color], axis=0)
         # make label gt
         gt_color = color_fn(gt)
         out_img = np.concatenate([out_img, gt_color], axis=0)
         return (out_img).astype(np.uint8)
+
+    @staticmethod
+    def make_log_img_torch(proj_mask, in_vol, pred_argmax, proj_labels, color_fn):
+        mask_np = proj_mask.cpu().numpy()
+        depth_np = in_vol[0].cpu().numpy()
+        pred_np = pred_argmax.cpu().numpy()
+        gt_np = proj_labels.cpu().numpy()
+        out = Trainer.make_log_img(
+            depth_np, mask_np, pred_np, gt_np, color_fn)
+        return out
 
     @staticmethod
     def save_to_log(logdir, logger, info, epoch, w_summary=False, model=None, img_summary=False, imgs=[]):
@@ -271,17 +306,19 @@ class Trainer():
         # train for n epochs
         for epoch in range(self.epoch, self.ARCH["train"]["max_epochs"]):
             # train for 1 epoch
-            acc, iou, loss, update_mean,hetero_l = self.train_epoch(train_loader=self.parser.get_train_set(),
-                                                           model=self.model,
-                                                           model_old=self.model_old,
-                                                           criterion=self.criterion,
-                                                           optimizer=self.optimizer,
-                                                           epoch=epoch,
-                                                           evaluator=self.evaluator,
-                                                           scheduler=self.scheduler,
-                                                           color_fn=self.parser.to_color,
-                                                           report=self.ARCH["train"]["report_batch"],
-                                                           show_scans=self.ARCH["train"]["show_scans"])
+            acc, iou, loss, update_mean, hetero_l = self.train_epoch(
+                train_loader=self.parser.get_train_set(),
+                model=self.model,
+                model_old=self.model_old,
+                criterion=self.criterion,
+                optimizer=self.optimizer,
+                epoch=epoch,
+                evaluator=self.evaluator,
+                scheduler=self.scheduler,
+                color_fn=self.parser.to_color,
+                report=self.ARCH["train"]["report_batch"],
+                show_scans=self.ARCH["train"]["show_scans"],
+            )
 
             # update info
             self.info["train_update"] = update_mean
@@ -309,13 +346,15 @@ class Trainer():
             if epoch % self.ARCH["train"]["report_epoch"] == 0:
                 # evaluate on validation set
                 print("*" * 80)
-                acc, iou, loss, rand_img,hetero_l = self.validate(val_loader=self.parser.get_valid_set(),
-                                                         model=self.model,
-                                                         criterion=self.criterion,
-                                                         evaluator=self.evaluator,
-                                                         class_func=self.parser.get_xentropy_class_string,
-                                                         color_fn=self.parser.to_color,
-                                                         save_scans=self.ARCH["train"]["save_scans"])
+                acc, iou, loss, rand_img, hetero_l = self.validate(
+                    val_loader=self.parser.get_valid_set(),
+                    model=self.model,
+                    criterion=self.criterion,
+                    evaluator=self.evaluator,
+                    class_func=self.parser.get_xentropy_class_string,
+                    color_fn=self.parser.to_color,
+                    save_scans=self.ARCH["train"]["save_scans"],
+                )
 
                 # update info
                 self.info["valid_loss"] = loss
@@ -336,14 +375,16 @@ class Trainer():
             print("*" * 80)
 
             # save to log
-            Trainer.save_to_log(logdir=self.log,
-                                logger=self.tb_logger,
-                                info=self.info,
-                                epoch=epoch,
-                                w_summary=self.ARCH["train"]["save_summary"],
-                                model=self.model_single,
-                                img_summary=self.ARCH["train"]["save_scans"],
-                                imgs=rand_img)
+            Trainer.save_to_log(
+                logdir=self.log,
+                logger=self.tb_logger,
+                info=self.info,
+                epoch=epoch,
+                w_summary=self.ARCH["train"]["save_summary"],
+                model=self.model_single,
+                img_summary=self.ARCH["train"]["save_scans"],
+                imgs=rand_img,
+            )
 
         print('Finished Training')
 
@@ -378,18 +419,22 @@ class Trainer():
 
             if model_old is not None:
                 with torch.no_grad():
-                    output_old, logits_old, decode_result_old = model_old(in_vol)
+                    output_old, logits_old, decode_result_old = model_old(
+                        in_vol)
 
             # compute output
-            output, logits, decode_result  = model(in_vol)
+            output, logits, decode_result = model(in_vol)
 
-            nll_loss = self.loss_coefficient["NLLLoss"] * criterion(torch.log(output.clamp(min=1e-8)), proj_labels)
-            lovasz_loss = self.loss_coefficient["Lovasz_softmax"] * self.ls(output, proj_labels.long())
+            nll_loss = self.loss_coefficient["NLLLoss"] * criterion(
+                torch.log(output.clamp(min=1e-8)), proj_labels)
+            lovasz_loss = self.loss_coefficient["Lovasz_softmax"] * \
+                self.ls(output, proj_labels.long())
             loss_m = nll_loss + lovasz_loss
 
             if model_old is not None:
                 if type(self.distill) == MSEDistillLoss:
-                    distill_loss = self.distill(decode_result, decode_result_old)
+                    distill_loss = self.distill(
+                        decode_result, decode_result_old)
                 else:
                     # print(f"self.distill is {type(self.distill)}")
                     distill_loss = self.distill(logits, logits_old)
@@ -429,7 +474,8 @@ class Trainer():
                 lr = g["lr"]
                 for value in g["params"]:
                     if value.grad is not None:
-                        w = np.linalg.norm(value.data.cpu().numpy().reshape((-1)))
+                        w = np.linalg.norm(
+                            value.data.cpu().numpy().reshape((-1)))
                         update = np.linalg.norm(-max(lr, 1e-10) *
                                                 value.grad.cpu().numpy().reshape((-1)))
                         update_ratios.append(update / max(w, 1e-10))
@@ -440,22 +486,24 @@ class Trainer():
 
             if show_scans:
                 # get the first scan in batch and project points
-                mask_np = proj_mask[0].cpu().numpy()
-                depth_np = in_vol[0][0].cpu().numpy()
-                pred_np = argmax[0].cpu().numpy()
-                gt_np = proj_labels[0].cpu().numpy()
-                out = Trainer.make_log_img(depth_np, mask_np, pred_np, gt_np, color_fn)
-
-                mask_np = proj_mask[1].cpu().numpy()
-                depth_np = in_vol[1][0].cpu().numpy()
-                pred_np = argmax[1].cpu().numpy()
-                gt_np = proj_labels[1].cpu().numpy()
-                out2 = Trainer.make_log_img(depth_np, mask_np, pred_np, gt_np, color_fn)
+                out = Trainer.make_log_img_torch(
+                    proj_mask[0],
+                    in_vol[0],
+                    argmax[0],
+                    proj_labels[0],
+                    color_fn,
+                )
+                out2 = Trainer.make_log_img_torch(
+                    proj_mask[1],
+                    in_vol[1],
+                    argmax[1],
+                    proj_labels[1],
+                    color_fn,
+                )
 
                 out = np.concatenate([out, out2], axis=0)
                 cv2.imshow("sample_training", out)
                 cv2.waitKey(1)
-
 
             if i % self.ARCH["train"]["report_batch"] == 0:
                 print_save_to_log(self.log, 'log.txt', f"""\
@@ -471,7 +519,7 @@ IoU {iou.val:.3f} ({iou.avg:.3f}) | [{self.calculate_estimate(epoch, i)}]""")
             # step scheduler
             scheduler.step()
 
-        return acc.avg, iou.avg, losses.avg, update_ratio_meter.avg,hetero_l.avg
+        return acc.avg, iou.avg, losses.avg, update_ratio_meter.avg, hetero_l.avg
 
     def validate(self, val_loader, model, criterion, evaluator, class_func, color_fn, save_scans):
         print(f"validate begin")
@@ -511,21 +559,19 @@ IoU {iou.val:.3f} ({iou.avg:.3f}) | [{self.calculate_estimate(epoch, i)}]""")
                 argmax = output.argmax(dim=1)
                 evaluator.addBatch(argmax, proj_labels)
                 losses.update(loss.mean().item(), in_vol.size(0))
-                jaccs.update(jacc.mean().item(),in_vol.size(0))
+                jaccs.update(jacc.mean().item(), in_vol.size(0))
 
-                wces.update(wce.mean().item(),in_vol.size(0))
+                wces.update(wce.mean().item(), in_vol.size(0))
 
                 if save_scans:
                     # get the first scan in batch and project points
-                    mask_np = proj_mask[0].cpu().numpy()
-                    depth_np = in_vol[0][0].cpu().numpy()
-                    pred_np = argmax[0].cpu().numpy()
-                    gt_np = proj_labels[0].cpu().numpy()
-                    out = Trainer.make_log_img(depth_np,
-                                               mask_np,
-                                               pred_np,
-                                               gt_np,
-                                               color_fn)
+                    out = Trainer.make_log_img_torch(
+                        proj_mask[0],
+                        in_vol[0],
+                        argmax[0],
+                        proj_labels[0],
+                        color_fn,
+                    )
                     rand_imgs.append(out)
 
                 # measure elapsed time
@@ -552,11 +598,10 @@ Hetero avg {hetero_l.avg:.4f}
 """
             print_save_to_log(self.log, 'log.txt', log_txt)
             # print also classwise
-            
+
             for i, jacc in enumerate(class_jaccard):
                 print_save_to_log(
                     self.log, 'log.txt', f'IoU class {i:} [{class_func(i):}] = {jacc:.3f}')
                 self.info["valid_classes/" + class_func(i)] = jacc
-
 
         return acc.avg, iou.avg, losses.avg, rand_imgs, hetero_l.avg
