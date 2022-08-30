@@ -119,6 +119,7 @@ class SemanticKitti(Dataset):
                  max_points=150000,   # max number of points present in dataset
                  gt=True,
                  transform=False,  # send ground truth
+                 is_count_labels=False,
                  ):
         # save deats
         self.root = os.path.join(root, "sequences")
@@ -172,7 +173,11 @@ class SemanticKitti(Dataset):
 
         self.get_scan_label_files_from_file()
         print(
-            f"Using {len(self.scan_files)} scans from sequences {self.sequences}")
+            f"{type(self).__name__} Using {len(self.scan_files)} scans from sequences {self.sequences}")
+        
+        if is_count_labels:
+            labels_count_dict = count_label_numbers(self.label_files)
+            self.labels_frequencies = get_label_frequencies(labels_count_dict)
 
     def get_scan_label_files_from_file(self):
         print(f"{type(self).__name__} getting scan and label files")
@@ -205,8 +210,6 @@ class SemanticKitti(Dataset):
         self.scan_files.sort()
         self.label_files.sort()
 
-        labels_count_dict = count_label_numbers(self.label_files)
-        self.labels_frequencies = get_label_frequencies(labels_count_dict)
 
     def __getitem__(self, index):
         # get item in tensor shape
@@ -366,6 +369,7 @@ class IncrementalSemanticKitti(SemanticKitti):
                  gt=True,
                  transform=False,  # send ground truth
                  sample_number: int = None,
+                 is_count_labels=False,
                  ):
         self.sample_number = sample_number
         super(IncrementalSemanticKitti, self).__init__(
@@ -379,6 +383,7 @@ class IncrementalSemanticKitti(SemanticKitti):
             max_points,
             gt,
             transform,
+            is_count_labels,
         )
 
     def get_scan_label_files_from_file(self):
@@ -411,15 +416,14 @@ class IncrementalSemanticKitti(SemanticKitti):
         self.scan_files.sort()
         self.label_files.sort()
 
-        labels_count_dict = count_label_numbers(self.label_files)
-        self.labels_frequencies = get_label_frequencies(labels_count_dict)
-
 
 class Parser():
     def __init__(self,
                  root,              # directory for data
                  datargs,
                  archargs,
+                 batch_size,
+                 is_test,
                  gt=True,           # get gt?
                  shuffle_train=True):  # shuffle training set?
         super(Parser, self).__init__()
@@ -442,7 +446,7 @@ class Parser():
         self.learning_map_inv = self.DATA["learning_map_inv"]
         self.sensor = self.ARCH["dataset"]["sensor"]
         self.max_points = self.ARCH["dataset"]["max_points"]
-        self.batch_size = self.ARCH["train"]["batch_size"]
+        self.batch_size = batch_size
         self.workers = self.ARCH["train"]["workers"]
 
         self.task_name = self.ARCH["train"]["task_name"]
@@ -471,7 +475,8 @@ class Parser():
                 max_points=self.max_points,
                 transform=True,
                 gt=self.gt,
-                sample_number=self.ARCH["train"]["sample_number"]
+                sample_number=self.ARCH["train"]["sample_number"],
+                is_count_labels=True,
             )
             self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
                 self.train_dataset.labels_frequencies)
@@ -518,7 +523,7 @@ class Parser():
         assert len(self.validloader) > 0
         self.validiter = iter(self.validloader)
 
-        if self.test_sequences:
+        if is_test and self.test_sequences:
             self.test_dataset = SemanticKitti(
                 root=self.root,
                 sequences=self.test_sequences,
