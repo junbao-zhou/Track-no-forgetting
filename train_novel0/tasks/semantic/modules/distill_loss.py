@@ -172,11 +172,12 @@ class UnbiasedKnowledgeDistillationLoss(nn.Module):
         return outputs
 
 
-class DIstillLoss(nn.Module):
-    def __init__(self, temperature):
-        super(DIstillLoss, self).__init__()
+class MSEDistillLoss(nn.Module):
+    def __init__(self, temperature = 1):
+        super(MSEDistillLoss, self).__init__()
         self.temperature = temperature
+        self.loss_function = nn.MSELoss()
 
     def forward(self, scores, targets):
-        loss = nn.CrossEntropyLoss(scores, targets)
+        loss = self.loss_function(scores, targets)
         return loss
