@@ -19,6 +19,7 @@ import numpy as np
 from tasks.semantic.modules.SalsaNext import *
 from tasks.semantic.modules.SalsaNextAdf import *
 from tasks.semantic.postproc.KNN import KNN
+from tasks.semantic.task import get_per_task_classes
 
 
 class User():
@@ -49,16 +50,13 @@ class User():
         torch.nn.Module.dump_patches = True
         if self.uncertainty:
             self.model = SalsaNextUncertainty(self.parser.get_n_classes())
-            self.model = nn.DataParallel(self.model)
-            w_dict = torch.load(modeldir + "/SalsaNext",
-                                map_location=lambda storage, loc: storage)
-            self.model.load_state_dict(w_dict['state_dict'], strict=True)
         else:
-            self.model = SalsaNext(self.parser.get_n_classes())
-            self.model = nn.DataParallel(self.model)
-            w_dict = torch.load(modeldir + "/SalsaNext",
-                                map_location=lambda storage, loc: storage)
-            self.model.module.load_state_dict(w_dict['state_dict'], strict=True)
+            nclasses = get_per_task_classes(self.ARCH["train"]["task_name"], self.ARCH["train"]['task_step'])
+            self.model = IncrementalSalsaNext(nclasses)
+        w_dict = torch.load(os.path.join(modeldir, "SalsaNext_valid_best"),
+                            map_location=lambda storage, loc: storage)
+        self.model = nn.DataParallel(self.model)
+        self.model.load_state_dict(w_dict['state_dict'], strict=True)
 
     # use knn post processing?
     self.post = None
@@ -123,6 +121,7 @@ class User():
       end = time.time()
 
       for i, (proj_in, proj_mask, _, _, path_seq, path_name, p_x, p_y, proj_range, unproj_range, _, _, _, _, npoints) in enumerate(loader):
+        print(f"epoch : {i}")
         # first cut to rela size (batch size one allows it)
         npoints = npoints.min()
 
@@ -217,7 +216,7 @@ class User():
 
             print(total_time / total_frames)
         else:
-            proj_output = self.model(proj_in)
+            proj_output, logits, decode_result = self.model(proj_in)
             proj_argmax = proj_output[0].argmax(dim=0)
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
@@ -267,3 +266,4 @@ class User():
             path = os.path.join(self.logdir, "sequences",
                                 path_seq, "predictions", path_name)
             pred_np.tofile(path)
+            print(f"saving to {path}")

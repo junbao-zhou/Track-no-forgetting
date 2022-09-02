@@ -2,6 +2,7 @@
 # This file is covered by the LICENSE file in the root of this project.
 
 import argparse
+import pathlib
 import subprocess
 import datetime
 import yaml
@@ -9,6 +10,8 @@ from shutil import copyfile
 import os
 import shutil
 import __init__ as booger
+
+os.environ["CUDA_VISIBLE_DEVICES"]="4,5,6,7"
 
 from tasks.semantic.modules.user import *
 def str2bool(v):
@@ -21,27 +24,29 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean expected')
 
+current_file_path = pathlib.Path(__file__)
+project_folder = current_file_path.parent.parent.parent.resolve()
+
 if __name__ == '__main__':
     splits = ["train", "valid", "test"]
     parser = argparse.ArgumentParser("./infer.py")
     parser.add_argument(
         '--dataset', '-d',
         type=str,
-        default="/public/home/meijilin/dataset/semantickitti",
+        default="/public/home/meijilin/dataset/semantickitti/dataset",
         help='Dataset to train with. No Default',
     )
     parser.add_argument(
         '--log', '-l',
         type=str,
-        default=os.path.expanduser("~") + '/logs/' +
-                datetime.datetime.now().strftime("%Y-%-m-%d-%H:%M") + '/',
+        default=project_folder,
         help='Directory to put the predictions. Default: ~/logs/date+time'
     )
     parser.add_argument(
         '--model', '-m',
         type=str,
         required=False,
-        default="/public/home/meijilin/code/mjl/SalsaNext/logs/logs/2022-5-11-13:57salsanext_base0",
+        default="/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-08-27-02:59:39novel",
         help='Directory to get the trained model.'
     )
 
@@ -63,11 +68,12 @@ if __name__ == '__main__':
         '--split', '-s',
         type=str,
         required=False,
-        default="valid",
+        default="test",
         help='Split to evaluate on. One of ' +
              str(splits) + '. Defaults to %(default)s',
     )
     FLAGS, unparsed = parser.parse_known_args()
+    FLAGS.log = os.path.join(FLAGS.log, 'infer_logs', datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
     # print summary of what we will do
     print("----------")
