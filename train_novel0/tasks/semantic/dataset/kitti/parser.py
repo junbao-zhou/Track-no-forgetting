@@ -25,6 +25,7 @@ import warnings
 
 from tasks.semantic.task import get_task_labels, get_per_task_classes
 import tqdm
+from tasks.config.dataset import sensor
 
 EXTENSIONS_SCAN = ['.bin']
 EXTENSIONS_LABEL = ['.label']
@@ -115,7 +116,7 @@ class SemanticKitti(Dataset):
                  color_map,     # colors dict bgr (e.g 10: [255, 0, 0])
                  learning_map,  # classes to learn (0 to N-1 for xentropy)
                  learning_map_inv,    # inverse of previous (recover labels)
-                 sensor,              # sensor to parse scans from
+                 #  sensor,              # sensor to parse scans from
                  max_points=150000,   # max number of points present in dataset
                  gt=True,
                  transform=False,  # send ground truth
@@ -129,15 +130,15 @@ class SemanticKitti(Dataset):
         self.color_map = color_map
         self.learning_map = learning_map
         self.learning_map_inv = learning_map_inv
-        self.sensor = sensor
-        self.sensor_img_H = sensor["img_prop"]["height"]
-        self.sensor_img_W = sensor["img_prop"]["width"]
-        self.sensor_img_means = torch.tensor(sensor["img_means"],
+        # self.sensor = sensor
+        self.sensor_img_H = sensor.img_prop.height
+        self.sensor_img_W = sensor.img_prop.width
+        self.sensor_img_means = torch.tensor(sensor.img_means,
                                              dtype=torch.float)
-        self.sensor_img_stds = torch.tensor(sensor["img_stds"],
+        self.sensor_img_stds = torch.tensor(sensor.img_stds,
                                             dtype=torch.float)
-        self.sensor_fov_up = sensor["fov_up"]
-        self.sensor_fov_down = sensor["fov_down"]
+        self.sensor_fov_up = sensor.fov_up
+        self.sensor_fov_down = sensor.fov_down
         self.max_points = max_points
         self.gt = gt
         self.transform = transform
@@ -174,7 +175,7 @@ class SemanticKitti(Dataset):
         self.get_scan_label_files_from_file()
         print(
             f"{type(self).__name__} Using {len(self.scan_files)} scans from sequences {self.sequences}")
-        
+
         if is_count_labels:
             labels_count_dict = count_label_numbers(self.label_files)
             self.labels_frequencies = get_label_frequencies(labels_count_dict)
@@ -209,7 +210,6 @@ class SemanticKitti(Dataset):
         # sort for correspondance
         self.scan_files.sort()
         self.label_files.sort()
-
 
     def __getitem__(self, index):
         # get item in tensor shape
@@ -364,7 +364,7 @@ class IncrementalSemanticKitti(SemanticKitti):
                  color_map,     # colors dict bgr (e.g 10: [255, 0, 0])
                  learning_map,  # classes to learn (0 to N-1 for xentropy)
                  learning_map_inv,    # inverse of previous (recover labels)
-                 sensor,              # sensor to parse scans from
+                 #  sensor,              # sensor to parse scans from
                  max_points=150000,   # max number of points present in dataset
                  gt=True,
                  transform=False,  # send ground truth
@@ -373,17 +373,17 @@ class IncrementalSemanticKitti(SemanticKitti):
                  ):
         self.sample_number = sample_number
         super(IncrementalSemanticKitti, self).__init__(
-            root,
-            sequences,
-            labels,
-            color_map,
-            learning_map,
-            learning_map_inv,
-            sensor,
-            max_points,
-            gt,
-            transform,
-            is_count_labels,
+            root=root,
+            sequences=sequences,
+            labels=labels,
+            color_map=color_map,
+            learning_map=learning_map,
+            learning_map_inv=learning_map_inv,
+            # sensor=sensor,
+            max_points=max_points,
+            gt=gt,
+            transform=transform,
+            is_count_labels=is_count_labels,
         )
 
     def get_scan_label_files_from_file(self):
@@ -420,8 +420,8 @@ class IncrementalSemanticKitti(SemanticKitti):
 class Parser():
     def __init__(self,
                  root,              # directory for data
-                 datargs,
-                 archargs,
+                 #  datargs,
+                 #  archargs,
                  batch_size,
                  is_test,
                  gt=True,           # get gt?
@@ -432,25 +432,30 @@ class Parser():
 
         # if I am training, get the dataset
         self.root = root
-        self.DATA = datargs
-        self.ARCH = archargs
+        # self.DATA = datargs
+        # self.ARCH = archargs
 
-        self.train_sequences = self.DATA["split"]["train"]
-        self.valid_sequences = self.DATA["split"]["valid"]
-        self.test_sequences = self.DATA["split"]["test"]
-        self.labels = self.DATA["labels"]
-        self.color_map = self.DATA["color_map"]
-        self.learning_map = self.DATA["learning_map"]
+        from tasks.config import dataset
+        from tasks.config import semantic_kitti
+        from tasks.config import salsanext
+
+        self.train_sequences = semantic_kitti.split.train
+        self.valid_sequences = semantic_kitti.split.valid
+        self.test_sequences = semantic_kitti.split.test
+
+        self.labels = semantic_kitti.labels
+        self.color_map = semantic_kitti.color_map
+        self.learning_map = semantic_kitti.learning_map
         print(f"{type(self).__name__}.learning_map = {self.learning_map}")
-        self.label_frequencies = self.DATA["label_frequencies"]
-        self.learning_map_inv = self.DATA["learning_map_inv"]
-        self.sensor = self.ARCH["dataset"]["sensor"]
-        self.max_points = self.ARCH["dataset"]["max_points"]
+        self.label_frequencies = semantic_kitti.label_frequencies
+        self.learning_map_inv = semantic_kitti.learning_map_inv
+        # self.sensor = dataset.sensor
+        self.max_points = dataset.max_points
         self.batch_size = batch_size
-        self.workers = self.ARCH["train"]["workers"]
+        # self.workers = dataset.workers
 
-        self.task_name = self.ARCH["train"]["task_name"]
-        self.task_step = self.ARCH["train"]["task_step"]
+        self.task_name = salsanext.train.task_name
+        self.task_step = salsanext.train.task_step
 
         self.gt = gt
         self.shuffle_train = shuffle_train
@@ -471,11 +476,11 @@ class Parser():
                 color_map=self.color_map,
                 learning_map=self.learning_map,
                 learning_map_inv=self.learning_map_inv,
-                sensor=self.sensor,
+                # sensor=self.sensor,
                 max_points=self.max_points,
                 transform=True,
                 gt=self.gt,
-                sample_number=self.ARCH["train"]["sample_number"],
+                sample_number=salsanext.train.sample_number,
                 is_count_labels=True,
             )
             self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
@@ -489,7 +494,7 @@ class Parser():
                 color_map=self.color_map,
                 learning_map=self.learning_map,
                 learning_map_inv=self.learning_map_inv,
-                sensor=self.sensor,
+                # sensor=self.sensor,
                 max_points=self.max_points,
                 transform=True,
                 gt=self.gt)
@@ -498,7 +503,7 @@ class Parser():
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=self.shuffle_train,
-            num_workers=self.workers,
+            num_workers=dataset.workers,
             drop_last=True)
         assert len(self.trainloader) > 0
         self.trainiter = iter(self.trainloader)
@@ -510,7 +515,7 @@ class Parser():
             color_map=self.color_map,
             learning_map=self.learning_map,
             learning_map_inv=self.learning_map_inv,
-            sensor=self.sensor,
+            # sensor=self.sensor,
             max_points=self.max_points,
             gt=self.gt)
 
@@ -518,7 +523,7 @@ class Parser():
             self.valid_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=self.workers,
+            num_workers=dataset.workers,
             drop_last=True)
         assert len(self.validloader) > 0
         self.validiter = iter(self.validloader)
@@ -531,7 +536,7 @@ class Parser():
                 color_map=self.color_map,
                 learning_map=self.learning_map,
                 learning_map_inv=self.learning_map_inv,
-                sensor=self.sensor,
+                # sensor=self.sensor,
                 max_points=self.max_points,
                 gt=False)
 
@@ -539,7 +544,7 @@ class Parser():
                 self.test_dataset,
                 batch_size=1,
                 shuffle=False,
-                num_workers=self.workers,
+                num_workers=dataset.workers,
                 drop_last=True)
             assert len(self.testloader) > 0
             self.testiter = iter(self.testloader)
@@ -638,3 +643,15 @@ class Parser():
             # print(f"x_label = {x_label}")
             result[x_label] += freq
         return result
+
+
+if __name__ == "__main__":
+    parser = Parser(
+        root="/public/home/meijilin/dataset/semantickitti",
+        # datargs=self.DATA,
+        # archargs=self.ARCH,
+        batch_size=32,
+        is_test=False,
+        gt=True,
+        shuffle_train=True,
+    )

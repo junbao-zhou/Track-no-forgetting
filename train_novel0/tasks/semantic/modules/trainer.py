@@ -25,6 +25,8 @@ from tasks.semantic.modules.Lovasz_Softmax import Lovasz_softmax, lovasz_grad
 import tasks.semantic.modules.adf as adf
 from tasks.semantic.modules.distill_loss import MSEDistillLoss, KnowledgeDistillationLoss, UnbiasedKnowledgeDistillationLoss
 from tasks.semantic.task import get_task_labels, get_per_task_classes
+from tasks.config import salsanext
+from tasks.config.semantic_kitti import learning_ignore
 
 
 def keep_variance_fn(x):
@@ -47,11 +49,6 @@ def save_to_log(logdir, logfile, message):
     return
 
 
-def print_save_to_log(logdir, logfile, message):
-    print(message)
-    save_to_log(logdir, logfile, message)
-
-
 def save_checkpoint(to_save, logdir, suffix=""):
     # Save the weights
     torch.save(to_save, os.path.join(logdir, f"SalsaNext{suffix}"))
@@ -64,10 +61,13 @@ def convert_model_to_parallel_sync_batchnorm(model: nn.Module):
 
 
 class Trainer():
-    def __init__(self, ARCH, DATA, datadir, logdir, group=0, path=None, uncertainty=False):
+    def __init__(
+            self,
+            # ARCH, DATA,
+            datadir, logdir, group=0, path=None, uncertainty=False):
         # parameters
-        self.ARCH = ARCH
-        self.DATA = DATA
+        # self.ARCH = ARCH
+        # self.DATA = DATA
         self.datadir = datadir
         self.log = logdir
         self.path = path
@@ -90,23 +90,18 @@ class Trainer():
                      "best_train_iou": 0,
                      "best_val_iou": 0}
 
-        # get the data
-        parserModule = imp.load_source("parserModule",
-                                       booger.TRAIN_PATH + '/tasks/semantic/dataset/' +
-                                       self.DATA["name"] + '/parser.py')
-
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            batch_size = self.ARCH["train"]["batch_size_per_GPU"] * \
+            batch_size = salsanext.train.batch_size_per_GPU * \
                 torch.cuda.device_count()
-            print_save_to_log(
-                self.log, 'log.txt', f"gpu number = {torch.cuda.device_count()}")
-            print_save_to_log(
-                self.log, 'log.txt', f"batch_size = {batch_size}")
+            self.print_save_to_log(f"gpu number = {torch.cuda.device_count()}")
+            self.print_save_to_log(f"batch_size = {batch_size}")
 
-        self.parser = parserModule.Parser(
+        from tasks.semantic.dataset.kitti import parser
+        # get the data
+        self.parser = parser.Parser(
             root=self.datadir,
-            datargs=self.DATA,
-            archargs=self.ARCH,
+            # datargs=self.DATA,
+            # archargs=self.ARCH,
             batch_size=batch_size,
             is_test=False,
             gt=True,
@@ -114,34 +109,37 @@ class Trainer():
         )
 
         # weights for loss (and bias)
-        epsilon_w = self.ARCH["train"]["epsilon_w"]
-        print(f'label_frequencies = {self.parser.xentropy_label_frequencies}')
+        epsilon_w = salsanext.train.loss.epsilon_w
+        self.print_save_to_log(
+            f'label_frequencies = \n{self.parser.xentropy_label_frequencies}')
         # exit()
         self.loss_w = 1 / \
             (self.parser.xentropy_label_frequencies + epsilon_w)  # get weights
         # ignore the ones necessary to ignore
         for x_cl, w in enumerate(self.loss_w):
-            if DATA["learning_ignore"][x_cl]:
+            if learning_ignore[x_cl]:
                 # don't weigh
                 self.loss_w[x_cl] = 0
-        print("Loss weights from label_frequencies: ", self.loss_w.data)
+        self.print_save_to_log(
+            f"Loss weights from label_frequencies = \n{self.loss_w.data}")
         # exit(0)
 
         self.model_old = None
         with torch.no_grad():
             nclasses = get_per_task_classes(
-                self.ARCH["train"]["task_name"], self.ARCH["train"]['task_step'])
+                salsanext.train.task_name, salsanext.train.task_step)
             self.model = IncrementalSalsaNext(nclasses)
             # exit(0)
-            step = self.ARCH["train"]["task_step"]
+            step = salsanext.train.task_step
             if step > 0:
                 self.model_old = IncrementalSalsaNext([nclasses[step-1]])
 
-        base_model_path = self.ARCH["train"]["base_model"]
-        if os.path.exists(base_model_path):
+        # base_model_path = salsanext.train.base_model
+        if os.path.exists(salsanext.train.base_model):
             torch.nn.Module.dump_patches = True
             w_dict = torch.load(
-                os.path.join(base_model_path, "SalsaNext_valid_best"),
+                os.path.join(salsanext.train.base_model,
+                             "SalsaNext_valid_best"),
                 map_location=lambda storage, loc: storage,
             )
             if self.model_old is not None:
@@ -149,15 +147,16 @@ class Trainer():
                 self.model_old.load_state_dict(
                     w_dict['state_dict'], strict=True)
 
-            print(f'load state dict to model')
+        if os.path.exists(salsanext.train.novel_model):
             w_dict = torch.load(
                 os.path.join(
-                    self.ARCH["train"]["novel_model"] + "SalsaNext_valid_best"),
+                    salsanext.train.novel_model, "SalsaNext_valid_best"),
                 map_location=lambda storage, loc: storage,
             )
+            print(f'load state dict to model')
             self.model.load_state_dict(w_dict['state_dict'], strict=False)
 
-        self.tb_logger = Logger(self.log + "/tb")
+        self.tb_logger = Logger(os.path.join(self.log, "tb"))
 
         # GPU?
         self.gpu = False
@@ -189,11 +188,11 @@ class Trainer():
 
         self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
         self.ls = Lovasz_softmax(ignore=0).to(self.device)
-        print(f'Distill Loss : {self.ARCH["train"]["distill_loss_name"]}')
-        self.distill = eval(
-            self.ARCH["train"]["distill_loss_name"])().to(self.device)
+        self.print_save_to_log(
+            f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')
+        self.distill = salsanext.train.loss.distill_name().to(self.device)
 
-        self.loss_coefficient = self.ARCH["train"]["loss_coefficient"]
+        self.loss_coefficient = salsanext.train.loss.coefficient
 
         # loss as dataparallel too (more images in batch)
         # if self.n_gpus > 1:
@@ -202,20 +201,21 @@ class Trainer():
         #     self.distill = nn.DataParallel(self.distill).cuda()
         self.optimizer = optim.SGD(
             [{'params': self.model.parameters()}],
-            lr=self.ARCH["train"]["lr"],
-            momentum=self.ARCH["train"]["momentum"],
-            weight_decay=self.ARCH["train"]["w_decay"],
+            lr=salsanext.train.optimizer.lr,
+            momentum=salsanext.train.optimizer.momentum,
+            weight_decay=salsanext.train.optimizer.w_decay,
         )
 
         # Use warmup learning rate
         # post decay and step sizes come in epochs and we want it in steps
         steps_per_epoch = self.parser.get_train_size()
-        up_steps = int(self.ARCH["train"]["wup_epochs"] * steps_per_epoch)
-        final_decay = self.ARCH["train"]["lr_decay"] ** (1 / steps_per_epoch)
+        up_steps = int(salsanext.train.optimizer.wup_epochs * steps_per_epoch)
+        final_decay = salsanext.train.optimizer.lr_decay ** (
+            1 / steps_per_epoch)
         self.scheduler = warmupLR(optimizer=self.optimizer,
-                                  lr=self.ARCH["train"]["lr"],
+                                  lr=salsanext.train.optimizer.lr,
                                   warmup_steps=up_steps,
-                                  momentum=self.ARCH["train"]["momentum"],
+                                  momentum=salsanext.train.optimizer.momentum,
                                   decay=final_decay)
 
         # put the old model into distributed memory and freeze it
@@ -227,11 +227,11 @@ class Trainer():
     def calculate_estimate(self, epoch, iter):
         estimate = int(
             (self.data_time_t.avg + self.batch_time_t.avg) *
-            (self.parser.get_train_size() * self.ARCH['train']['max_epochs'] -
+            (self.parser.get_train_size() * salsanext.train.max_epochs -
              (iter + 1 + epoch * self.parser.get_train_size()))) + \
             int(
                 self.batch_time_e.avg * self.parser.get_valid_size() * (
-                    self.ARCH['train']['max_epochs'] - (epoch)))
+                    salsanext.train.max_epochs - (epoch)))
         return str(datetime.timedelta(seconds=estimate))
 
     @staticmethod
@@ -293,6 +293,10 @@ class Trainer():
                 name = os.path.join(directory, str(i) + ".png")
                 cv2.imwrite(name, img)
 
+    def print_save_to_log(self, message):
+        print(message)
+        save_to_log(self.log, 'print.log', message)
+
     def train(self):
 
         self.ignore_class = []
@@ -304,7 +308,7 @@ class Trainer():
                                  self.device, self.ignore_class)
 
         # train for n epochs
-        for epoch in range(self.epoch, self.ARCH["train"]["max_epochs"]):
+        for epoch in range(self.epoch, salsanext.train.max_epochs):
             # train for 1 epoch
             acc, iou, loss, update_mean, hetero_l = self.train_epoch(
                 train_loader=self.parser.get_train_set(),
@@ -316,8 +320,8 @@ class Trainer():
                 evaluator=self.evaluator,
                 scheduler=self.scheduler,
                 color_fn=self.parser.to_color,
-                report=self.ARCH["train"]["report_batch"],
-                show_scans=self.ARCH["train"]["show_scans"],
+                report=salsanext.train.report_batch,
+                show_scans=salsanext.train.show_scans,
             )
 
             # update info
@@ -343,7 +347,7 @@ class Trainer():
                 state['info'] = self.info
                 save_checkpoint(state, self.log, suffix="_train_best")
 
-            if epoch % self.ARCH["train"]["report_epoch"] == 0:
+            if epoch % salsanext.train.report_epoch == 0:
                 # evaluate on validation set
                 print("*" * 80)
                 acc, iou, loss, rand_img, hetero_l = self.validate(
@@ -353,7 +357,7 @@ class Trainer():
                     evaluator=self.evaluator,
                     class_func=self.parser.get_xentropy_class_string,
                     color_fn=self.parser.to_color,
-                    save_scans=self.ARCH["train"]["save_scans"],
+                    save_scans=salsanext.train.save_scans,
                 )
 
                 # update info
@@ -380,9 +384,9 @@ class Trainer():
                 logger=self.tb_logger,
                 info=self.info,
                 epoch=epoch,
-                w_summary=self.ARCH["train"]["save_summary"],
+                w_summary=salsanext.train.save_summary,
                 model=self.model_single,
-                img_summary=self.ARCH["train"]["save_scans"],
+                img_summary=salsanext.train.save_scans,
                 imgs=rand_img,
             )
 
@@ -425,9 +429,9 @@ class Trainer():
             # compute output
             output, logits, decode_result = model(in_vol)
 
-            nll_loss = self.loss_coefficient["NLLLoss"] * criterion(
+            nll_loss = self.loss_coefficient.NLLLoss * criterion(
                 torch.log(output.clamp(min=1e-8)), proj_labels)
-            lovasz_loss = self.loss_coefficient["Lovasz_softmax"] * \
+            lovasz_loss = self.loss_coefficient.Lovasz_softmax * \
                 self.ls(output, proj_labels.long())
             loss_m = nll_loss + lovasz_loss
 
@@ -438,7 +442,7 @@ class Trainer():
                 else:
                     # print(f"self.distill is {type(self.distill)}")
                     distill_loss = self.distill(logits, logits_old)
-                loss_m += self.loss_coefficient["Distill"] * distill_loss
+                loss_m += self.loss_coefficient.Distill * distill_loss
 
             # print(f'loss_m.size() = {loss_m.size()}')
             optimizer.zero_grad()
@@ -505,8 +509,8 @@ class Trainer():
                 cv2.imshow("sample_training", out)
                 cv2.waitKey(1)
 
-            if i % self.ARCH["train"]["report_batch"] == 0:
-                print_save_to_log(self.log, 'log.txt', f"""\
+            if i % salsanext.train.report_batch == 0:
+                self.print_save_to_log(f"""\
 Lr: {lr:.3e} | \
 Update: {update_mean:.3e} mean, {update_std:.3e} std | \
 Epoch: [{epoch}][{i}/{len(train_loader)}] | \
@@ -596,12 +600,12 @@ IoU avg {iou.avg:.3f}
                 log_txt += f"""\
 Hetero avg {hetero_l.avg:.4f}
 """
-            print_save_to_log(self.log, 'log.txt', log_txt)
+            self.print_save_to_log(log_txt)
             # print also classwise
 
             for i, jacc in enumerate(class_jaccard):
-                print_save_to_log(
-                    self.log, 'log.txt', f'IoU class {i:} [{class_func(i):}] = {jacc:.3f}')
+                self.print_save_to_log(
+                    f'IoU class {i:} [{class_func(i):}] = {jacc:.3f}')
                 self.info["valid_classes/" + class_func(i)] = jacc
 
         return acc.avg, iou.avg, losses.avg, rand_imgs, hetero_l.avg

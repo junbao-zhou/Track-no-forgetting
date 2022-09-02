@@ -6,10 +6,10 @@ import datetime
 import os
 import pathlib
 
-os.environ["CUDA_VISIBLE_DEVICES"]="6"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import shutil
-from shutil import copyfile
+from shutil import copyfile, copytree
 import __init__ as booger
 
 import sys
@@ -65,18 +65,6 @@ if __name__ == '__main__':
         help='Dataset to train with. No Default',
     )
     parser.add_argument(
-        '--arch_cfg', '-ac',
-        type=str,
-        default=os.path.join(project_folder, "salsanext.yml"),
-        help='Architecture yaml cfg file. See /config/arch for sample. No default!',
-    )
-    parser.add_argument(
-        '--data_cfg', '-dc',
-        type=str,
-        default=os.path.join(project_folder, "semantic-kitti.yaml"),
-        help='Classification yaml cfg file. See /config/labels for sample. No default!',
-    )
-    parser.add_argument(
         '--log', '-l',
         type=str,
         default=project_folder,
@@ -117,32 +105,12 @@ if __name__ == '__main__':
     print("----------")
     print("INTERFACE:")
     print("dataset", FLAGS.dataset)
-    print("arch_cfg", FLAGS.arch_cfg)
-    print("data_cfg", FLAGS.data_cfg)
     print("log", FLAGS.log)
     print("pretrained", FLAGS.pretrained)
     print("----------\n")
     # print("Commit hash (training version): ", str(
     #    subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).strip()))
     print("----------\n")
-
-    # open arch config file
-    try:
-        print("Opening arch config file %s" % FLAGS.arch_cfg)
-        ARCH = yaml.safe_load(open(FLAGS.arch_cfg, 'r'))
-    except Exception as e:
-        print(e)
-        print("Error opening arch yaml file.")
-        quit()
-
-    # open data config file
-    try:
-        print("Opening data config file %s" % FLAGS.data_cfg)
-        DATA = yaml.safe_load(open(FLAGS.data_cfg, 'r'))
-    except Exception as e:
-        print(e)
-        print("Error opening data yaml file.")
-        quit()
 
     # create log folder
     try:
@@ -176,9 +144,10 @@ if __name__ == '__main__':
     # copy all files to log folder (to remember what we did, and make inference
     # easier). Also, standardize name to be able to open it later
     try:
-        print("Copying files to %s for further reference." % FLAGS.log)
-        copyfile(FLAGS.arch_cfg, FLAGS.log + "/arch_cfg.yaml")
-        copyfile(FLAGS.data_cfg, FLAGS.log + "/data_cfg.yaml")
+        print(f"Copying files to {FLAGS.log} for further reference.")
+        copytree(
+            current_file_path.parent.parent, os.path.join(FLAGS.log, "codes"),
+            ignore=lambda src, children: [child for child in children if '__pycache__' in child])
     except Exception as e:
         print(e)
         print("Error copying files, check permissions. Exiting...")
@@ -186,5 +155,7 @@ if __name__ == '__main__':
 
     set_random_seed(FLAGS.manual_seed)
     # create trainer and start the training
-    trainer = Trainer(ARCH, DATA, FLAGS.dataset, FLAGS.log, path=None)
+    trainer = Trainer(
+        # ARCH, DATA,
+        datadir=FLAGS.dataset, logdir=FLAGS.log, path=None)
     trainer.train()
