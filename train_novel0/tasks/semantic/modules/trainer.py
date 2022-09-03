@@ -60,6 +60,11 @@ def convert_model_to_parallel_sync_batchnorm(model: nn.Module):
     return model
 
 
+def dict_to_table_str(dict: dict) -> str:
+    str_list = [f"\t{k}: {v}," for k, v in dict.items()]
+    return "{\n" + '\n'.join(str_list) + "\n}"
+
+
 class Trainer():
     def __init__(
             self,
@@ -107,19 +112,25 @@ class Trainer():
             gt=True,
             shuffle_train=True,
         )
+        self.print_save_to_log(
+            f"Parser's learning map = \n{dict_to_table_str(self.parser.learning_map)}")
+        self.print_save_to_log(
+            f'label_frequencies = \n{self.parser.xentropy_label_frequencies}')
+
+        self.ignore_classes = [
+            class_i for class_i, is_ignored in learning_ignore.items() if is_ignored]
+        self.print_save_to_log(f"Ignored Classes = {self.ignore_classes}")
+        assert len(self.ignore_classes) <= 1
 
         # weights for loss (and bias)
         epsilon_w = salsanext.train.loss.epsilon_w
-        self.print_save_to_log(
-            f'label_frequencies = \n{self.parser.xentropy_label_frequencies}')
         # exit()
         self.loss_w = 1 / \
             (self.parser.xentropy_label_frequencies + epsilon_w)  # get weights
         # ignore the ones necessary to ignore
-        for x_cl, w in enumerate(self.loss_w):
-            if learning_ignore[x_cl]:
-                # don't weigh
-                self.loss_w[x_cl] = 0
+        for ignore_class in self.ignore_classes:
+            # don't weigh
+            self.loss_w[ignore_class] = 0
         self.print_save_to_log(
             f"Loss weights from label_frequencies = \n{self.loss_w.data}")
         # exit(0)
@@ -187,7 +198,10 @@ class Trainer():
                     self.model_old)
 
         self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
-        self.ls = Lovasz_softmax(ignore=0).to(self.device)
+        if len(self.ignore_classes) == 0:
+            self.ls = Lovasz_softmax().to(self.device)
+        elif len(self.ignore_classes) == 1:
+            self.ls = Lovasz_softmax().to(self.device)
         self.print_save_to_log(
             f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')
         self.distill = salsanext.train.loss.distill_name().to(self.device)
@@ -299,13 +313,9 @@ class Trainer():
 
     def train(self):
 
-        self.ignore_class = []
-        for i, w in enumerate(self.loss_w):
-            if w < 1e-10:
-                self.ignore_class.append(i)
-                print("Ignoring class ", i, " in IoU evaluation")
+        print(f"Ignoring class {self.ignore_classes} in IoU evaluation")
         self.evaluator = iouEval(self.parser.get_n_classes(),
-                                 self.device, self.ignore_class)
+                                 self.device, self.ignore_classes)
 
         # train for n epochs
         for epoch in range(self.epoch, salsanext.train.max_epochs):
