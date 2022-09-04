@@ -37,10 +37,13 @@ class iouEval:
 
         # sizes should be "batch_size x H x W"
         x_row = x.reshape(-1)  # de-batchify
+        # print(f"x_row.shape = {x_row.shape}")
         y_row = y.reshape(-1)  # de-batchify
+        # print(f"y_row.shape = {y_row.shape}")
 
         # idxs are labels and predictions
         idxs = torch.stack([x_row, y_row], dim=0)
+        # print(f"idxs.shape = {idxs.shape}")
 
         # ones is what I want to add to conf when I
         if self.ones is None or self.last_scan_size != idxs.shape[-1]:
@@ -58,6 +61,7 @@ class iouEval:
     def getStats(self):
         # remove fp and fn from confusion on the ignore classes cols and rows
         conf = self.conf_matrix.clone().double()
+        # print(f"conf.shape = {conf.shape}")
         conf[self.ignore] = 0
         conf[:, self.ignore] = 0
 
