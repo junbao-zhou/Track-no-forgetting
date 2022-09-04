@@ -87,11 +87,12 @@ class IcarlLoss(nn.Module):
 
 
 class UnbiasedCrossEntropy(nn.Module):
-    def __init__(self, old_cl=None, reduction='mean', ignore_index=255):
+    def __init__(self, old_cl=None, weight=None, reduction='mean', ignore_index=255):
         super().__init__()
         self.reduction = reduction
         self.ignore_index = ignore_index
         self.old_cl = old_cl
+        self.register_buffer('weight', weight)
 
     def forward(self, inputs, targets):
 
@@ -103,9 +104,9 @@ class UnbiasedCrossEntropy(nn.Module):
             softmax_inputs[:, self.old_cl:])
 
         labels = targets.clone()    # B, H, W
-        labels[targets < old_cl] = 0  # just to be sure that all labels old belongs to zero
+        labels[targets < self.old_cl] = 0  # just to be sure that all labels old belongs to zero
 
-        loss = F.nll_loss(log_softmax, labels, ignore_index=self.ignore_index, reduction=self.reduction)
+        loss = F.nll_loss(log_softmax, labels, weight=self.weight, ignore_index=self.ignore_index, reduction=self.reduction)
 
         return loss
 
