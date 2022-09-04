@@ -95,16 +95,17 @@ class UnbiasedCrossEntropy(nn.Module):
 
     def forward(self, inputs, targets):
 
-        old_cl = self.old_cl
-        outputs = torch.zeros_like(inputs)  # B, C (1+V+N), H, W
-        den = torch.logsumexp(inputs, dim=1)                               # B, H, W       den of softmax
-        outputs[:, 0] = torch.logsumexp(inputs[:, 0:old_cl], dim=1) - den  # B, H, W       p(O)
-        outputs[:, old_cl:] = inputs[:, old_cl:] - den.unsqueeze(dim=1)    # B, N, H, W    p(N_i)
+        log_softmax = torch.zeros_like(inputs)
+        softmax_inputs = F.softmax(inputs, dim=1)
+        log_softmax[:, 0] = torch.log(
+            torch.sum(softmax_inputs[:, :self.old_cl], dim=1))
+        log_softmax[:, self.old_cl:] = torch.log(
+            softmax_inputs[:, self.old_cl:])
 
         labels = targets.clone()    # B, H, W
         labels[targets < old_cl] = 0  # just to be sure that all labels old belongs to zero
 
-        loss = F.nll_loss(outputs, labels, ignore_index=self.ignore_index, reduction=self.reduction)
+        loss = F.nll_loss(log_softmax, labels, ignore_index=self.ignore_index, reduction=self.reduction)
 
         return loss
 
@@ -181,3 +182,18 @@ class MSEDistillLoss(nn.Module):
     def forward(self, scores, targets):
         loss = self.loss_function(scores, targets)
         return loss
+
+
+if __name__ == '__main__':
+    B, C, H = (2, 4, 5)
+    old_cl = 2
+    criterion = UnbiasedCrossEntropy(old_cl)
+    x = torch.rand((B, C, H), requires_grad=True)
+    print(f"x = {x}")
+    targets = torch.randint(0, C, (B, H))
+    print(f"targets = {targets}")
+    loss = criterion(x, targets)
+    print(f"loss = {loss}")
+    loss.backward()
+    grad1 = torch.clone(x.grad)
+    print(grad1)
