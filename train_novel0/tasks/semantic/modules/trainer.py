@@ -352,14 +352,15 @@ class Trainer():
             save_checkpoint(state, self.log, suffix="")
 
             if self.info['train_iou'] > self.info['best_train_iou']:
-                print("Best mean iou in training set so far, save model!")
+                self.print_save_to_log(
+                    "Best mean iou in training set so far, save model!")
                 self.info['best_train_iou'] = self.info['train_iou']
                 state['info'] = self.info
                 save_checkpoint(state, self.log, suffix="_train_best")
 
             if epoch % salsanext.train.report_epoch == 0:
                 # evaluate on validation set
-                print("*" * 80)
+                self.print_save_to_log("*" * 80)
                 acc, iou, loss, rand_img, hetero_l = self.validate(
                     val_loader=self.parser.get_valid_set(),
                     model=self.model,
@@ -378,8 +379,9 @@ class Trainer():
 
             # remember best iou and save checkpoint
             if self.info['valid_iou'] > self.info['best_val_iou']:
-                print("Best mean iou in validation so far, save model!")
-                print("*" * 80)
+                self.print_save_to_log(
+                    "Best mean iou in validation so far, save model!")
+                self.print_save_to_log("*" * 80)
                 self.info['best_val_iou'] = self.info['valid_iou']
 
                 # save the weights!
