@@ -23,10 +23,11 @@ from tasks.semantic.modules.SalsaNext import *
 from tasks.semantic.modules.SalsaNextAdf import *
 from tasks.semantic.modules.Lovasz_Softmax import Lovasz_softmax, lovasz_grad
 import tasks.semantic.modules.adf as adf
-from tasks.semantic.modules.distill_loss import MSEDistillLoss, KnowledgeDistillationLoss, UnbiasedKnowledgeDistillationLoss
+from tasks.semantic.modules.distill_loss import MSEDistillLoss, KnowledgeDistillationLoss, UnbiasedCrossEntropy, UnbiasedKnowledgeDistillationLoss
 from tasks.semantic.task import get_task_labels, get_per_task_classes
 from tasks.config import salsanext
 from tasks.config.semantic_kitti import learning_ignore
+from common.sync_batchnorm.replicate import DataParallelWithCallback
 
 
 def keep_variance_fn(x):
@@ -124,26 +125,23 @@ class Trainer():
 
         # weights for loss (and bias)
         epsilon_w = salsanext.train.loss.epsilon_w
-        # exit()
-        self.loss_w = 1 / \
+        self.loss_weight = 1 / \
             (self.parser.xentropy_label_frequencies + epsilon_w)  # get weights
-        # ignore the ones necessary to ignore
-        for ignore_class in self.ignore_classes:
-            # don't weigh
-            self.loss_w[ignore_class] = 0
         self.print_save_to_log(
-            f"Loss weights from label_frequencies = \n{self.loss_w.data}")
+            f"Loss weights from label_frequencies = \n{self.loss_weight.data}")
         # exit(0)
+
+        per_task_classes = get_per_task_classes(
+            salsanext.train.task_name, salsanext.train.task_step)
 
         self.model_old = None
         with torch.no_grad():
-            nclasses = get_per_task_classes(
-                salsanext.train.task_name, salsanext.train.task_step)
-            self.model = IncrementalSalsaNext(nclasses)
+            self.model = IncrementalSalsaNext(per_task_classes)
             # exit(0)
             step = salsanext.train.task_step
             if step > 0:
-                self.model_old = IncrementalSalsaNext([nclasses[step-1]])
+                self.model_old = IncrementalSalsaNext(
+                    [per_task_classes[step-1]])
 
         # base_model_path = salsanext.train.base_model
         if os.path.exists(salsanext.train.base_model):
@@ -197,11 +195,17 @@ class Trainer():
                 self.model_old = convert_model_to_parallel_sync_batchnorm(
                     self.model_old)
 
-        self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
-        if len(self.ignore_classes) == 0:
-            self.ls = Lovasz_softmax().to(self.device)
-        elif len(self.ignore_classes) == 1:
-            self.ls = Lovasz_softmax().to(self.device)
+        self.criterion = UnbiasedCrossEntropy(old_cl=per_task_classes[0], weight=self.loss_weight).to(self.device)\
+            if salsanext.train.task_step > 0 else \
+            nn.NLLLoss(
+                weight=self.loss_weight,
+                ignore_index=None if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
+        self.print_save_to_log(
+            f'self.criterion : {self.criterion}, ignore_index : {self.criterion.ignore_index}')
+        self.ls = Lovasz_softmax(
+            ignore=None if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
+        self.print_save_to_log(
+            f'self.lovasz.ignore : {self.ls.ignore}')
         self.print_save_to_log(
             f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')
         self.distill = salsanext.train.loss.distill_name().to(self.device)
@@ -344,7 +348,7 @@ class Trainer():
             # remember best iou and save checkpoint
             state = {
                 'epoch': epoch,
-                'state_dict': self.model.module.state_dict() if type(self.model) == nn.DataParallel else self.model.state_dict(),
+                'state_dict': self.model.module.state_dict() if type(self.model) == DataParallelWithCallback else self.model.state_dict(),
                 'optimizer': self.optimizer.state_dict(),
                 'info': self.info,
                 'scheduler': self.scheduler.state_dict(),
@@ -441,8 +445,12 @@ class Trainer():
             # compute output
             output, logits, decode_result = model(in_vol)
 
-            nll_loss = self.loss_coefficient.NLLLoss * criterion(
-                torch.log(output.clamp(min=1e-8)), proj_labels)
+            if type(criterion) == nn.NLLLoss:
+                nll_loss = self.loss_coefficient.NLLLoss * criterion(
+                    torch.log(output.clamp(min=1e-8)), proj_labels)
+            else:
+                nll_loss = self.loss_coefficient.NLLLoss * criterion(
+                    logits, proj_labels)
             lovasz_loss = self.loss_coefficient.Lovasz_softmax * \
                 self.ls(output, proj_labels.long())
             loss_m = nll_loss + lovasz_loss
