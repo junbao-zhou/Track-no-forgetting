@@ -317,7 +317,7 @@ class Trainer():
 
     def train(self):
 
-        print(f"Ignoring class {self.ignore_classes} in IoU evaluation")
+        self.print_save_to_log(f"Ignoring class {self.ignore_classes} in IoU evaluation")
         self.evaluator = iouEval(self.parser.get_n_classes(),
                                  self.device, self.ignore_classes)
 
