@@ -406,7 +406,7 @@ class Trainer():
                 imgs=rand_img,
             )
 
-        print('Finished Training')
+        self.print_save_to_log('Finished Training')
 
         return
 
