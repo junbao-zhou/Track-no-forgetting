@@ -355,6 +355,20 @@ def read_sample_file(json_file_name: str, sequences: List[str], sample_number: i
                    for seq, file in label_files]
     return scan_files, label_files
 
+def read_sample_file_txt(txt_file_name: str, sequences: List[str], sample_number: int = None):
+    with open(txt_file_name, 'r') as f:
+        lines = f.readlines()
+    label_file_lines = lines
+
+    if sample_number is not None and (sample_number < len(label_file_lines)):
+        label_file_lines = random.sample(label_file_lines, sample_number)
+
+    scan_files = [line.split()[1]
+                  for line in label_file_lines]
+    label_files = [line.split()[2]
+                  for line in label_file_lines]
+    return scan_files, label_files
+
 
 class IncrementalSemanticKitti(SemanticKitti):
 
@@ -395,10 +409,10 @@ class IncrementalSemanticKitti(SemanticKitti):
         ]
         samples = {}
         for name in samplefiles:
-            json_file_path = os.path.join(self.root, f"{name}.json")
-            print(f"reading {json_file_path}")
-            scan_files, label_files = read_sample_file(
-                json_file_path, self.sequences, self.sample_number)
+            txt_file_path = os.path.join(self.root, f"{name}.txt")
+            print(f"reading {txt_file_path}")
+            scan_files, label_files = read_sample_file_txt(
+                txt_file_path, self.sequences, self.sample_number)
             scan_files = [os.path.join(self.root, scan)
                           for scan in scan_files]
             label_files = [os.path.join(self.root, label)
