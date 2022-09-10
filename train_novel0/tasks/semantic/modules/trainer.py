@@ -137,12 +137,12 @@ class Trainer():
         self.model_old = None
         with torch.no_grad():
             self.model = IncrementalSalsaNext(per_task_classes)
-            self.print_save_to_log(f'Initialize model')
+            self.print_save_to_log(f'Initialize model, {type(self.model).__name__}, {self.model.nclasses} classes')
             step = salsanext.train.task_step
             if step > 0 and salsanext.train.is_use_base_model:
                 self.model_old = IncrementalSalsaNext(
                     [per_task_classes[step-1]])
-                self.print_save_to_log(f'Initialize old model')
+                self.print_save_to_log(f'Initialize old model, {type(self.model_old).__name__}, {self.model_old.nclasses} classes')
 
         # base_model_path = salsanext.train.base_model
         if os.path.exists(salsanext.train.base_model):
@@ -163,8 +163,8 @@ class Trainer():
                     salsanext.train.novel_model, "SalsaNext_valid_best"),
                 map_location=lambda storage, loc: storage,
             )
-            self.print_save_to_log(f'load state dict to model')
-            self.model.load_state_dict(w_dict['state_dict'], strict=False)
+            incompatibel_keys = self.model.load_state_dict(w_dict['state_dict'], strict=False)
+            self.print_save_to_log(f'load state dict to model, incompatibel_keys :\n{incompatibel_keys}')
 
         self.tb_logger = Logger(os.path.join(self.log, "tb"))
 
