@@ -1,7 +1,7 @@
 ################################################################################
 # training parameters
 ################################################################################
-from tasks.semantic.modules.distill_loss import UnbiasedKnowledgeDistillationLoss
+from tasks.semantic.modules.distill_loss import UnbiasedKnowledgeDistillationLoss, KnowledgeDistillationLoss
 
 
 class train:
@@ -21,8 +21,9 @@ class train:
     # sample images (one per batch of the last calculated batch)
     # in log folder
     show_scans = False      # show scans during training
-    base_model = "/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-08-08-03:23:36base"
-    novel_model = "/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-08-08-03:23:36base"
+    is_use_base_model = True
+    base_model = "/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-09-03-03:16:13base"
+    novel_model = "/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-09-03-03:16:13base"
     task_name = "16-4"
     task_step = 1
     sample_number = 100
