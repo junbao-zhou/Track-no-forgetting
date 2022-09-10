@@ -200,7 +200,7 @@ class Trainer():
             if salsanext.train.task_step > 0 else \
             nn.NLLLoss(
                 weight=self.loss_weight,
-                ignore_index=None if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
+                ignore_index=-100 if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
         self.print_save_to_log(
             f'self.criterion : {self.criterion}, ignore_index : {self.criterion.ignore_index}')
         self.ls = Lovasz_softmax(
