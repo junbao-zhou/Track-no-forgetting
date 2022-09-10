@@ -153,7 +153,7 @@ class Trainer():
                 map_location=lambda storage, loc: storage,
             )
             if self.model_old is not None:
-                print(f'load state dict to old model')
+                self.print_save_to_log(f'load state dict to old model')
                 self.model_old.load_state_dict(
                     w_dict['state_dict'], strict=True)
 
@@ -163,7 +163,7 @@ class Trainer():
                     salsanext.train.novel_model, "SalsaNext_valid_best"),
                 map_location=lambda storage, loc: storage,
             )
-            print(f'load state dict to model')
+            self.print_save_to_log(f'load state dict to model')
             self.model.load_state_dict(w_dict['state_dict'], strict=False)
 
         self.tb_logger = Logger(os.path.join(self.log, "tb"))
