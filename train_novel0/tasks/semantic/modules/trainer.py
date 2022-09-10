@@ -207,9 +207,10 @@ class Trainer():
             ignore=None if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
         self.print_save_to_log(
             f'self.lovasz.ignore : {self.ls.ignore}')
-        self.print_save_to_log(
-            f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')
-        self.distill = salsanext.train.loss.distill_name().to(self.device)
+        if self.model_old is not None:
+            self.print_save_to_log(
+                f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')
+            self.distill = salsanext.train.loss.distill_name().to(self.device)
 
         self.loss_coefficient = salsanext.train.loss.coefficient
 
