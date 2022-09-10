@@ -137,11 +137,12 @@ class Trainer():
         self.model_old = None
         with torch.no_grad():
             self.model = IncrementalSalsaNext(per_task_classes)
-            # exit(0)
+            self.print_save_to_log(f'Initialize model')
             step = salsanext.train.task_step
-            if step > 0:
+            if step > 0 and salsanext.train.is_use_base_model:
                 self.model_old = IncrementalSalsaNext(
                     [per_task_classes[step-1]])
+                self.print_save_to_log(f'Initialize old model')
 
         # base_model_path = salsanext.train.base_model
         if os.path.exists(salsanext.train.base_model):
