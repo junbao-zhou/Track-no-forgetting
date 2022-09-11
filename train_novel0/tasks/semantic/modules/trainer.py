@@ -66,6 +66,12 @@ def dict_to_table_str(dict: dict) -> str:
     return "{\n" + '\n'.join(str_list) + "\n}"
 
 
+def freeze_model(model: nn.Module):
+    for p in model.parameters():
+        p.requires_grad = False
+    model.eval()
+
+
 class Trainer():
     def __init__(
             self,
@@ -244,9 +250,7 @@ class Trainer():
 
         # put the old model into distributed memory and freeze it
         if self.model_old is not None:
-            for par in self.model_old.parameters():
-                par.requires_grad = False
-            self.model_old.eval()
+            freeze_model(self.model_old)
 
         self.init_evaluator()
 
