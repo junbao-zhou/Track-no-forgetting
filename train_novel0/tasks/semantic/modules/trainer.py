@@ -379,15 +379,7 @@ class Trainer():
             if epoch % salsanext.train.report_epoch == 0:
                 # evaluate on validation set
                 self.print_save_to_log("*" * 80)
-                acc, iou, loss, rand_img, hetero_l = self.validate(
-                    val_loader=self.parser.get_valid_set(),
-                    model=self.model,
-                    criterion=self.criterion,
-                    evaluator=self.evaluator,
-                    class_func=self.parser.get_xentropy_class_string,
-                    color_fn=self.parser.to_color,
-                    save_scans=salsanext.train.save_scans,
-                )
+                acc, iou, loss, rand_img, hetero_l = self.validate_one()
 
                 # update info
                 self.info["valid_loss"] = loss
@@ -643,3 +635,14 @@ Hetero avg {hetero_l.avg:.4f}
                 self.info["valid_classes/" + class_func(i)] = jacc
 
         return acc.avg, iou.avg, losses.avg, rand_imgs, hetero_l.avg
+
+    def validate_one(self):
+        return self.validate(
+            val_loader=self.parser.get_valid_set(),
+            model=self.model,
+            criterion=self.criterion,
+            evaluator=self.evaluator,
+            class_func=self.parser.get_xentropy_class_string,
+            color_fn=self.parser.to_color,
+            save_scans=salsanext.train.save_scans,
+        )
