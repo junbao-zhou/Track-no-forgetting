@@ -152,29 +152,29 @@ class Trainer():
                 self.print_save_to_log(
                     f'Initialize old model, {type(self.model_old).__name__}, {self.model_old.nclasses} classes')
 
-        # base_model_path = salsanext.train.base_model
-        if os.path.exists(salsanext.train.base_model):
+        def load_state_dict(path: str, model: torch.nn.Module, model_name: str, is_strict: bool = True):
             torch.nn.Module.dump_patches = True
             w_dict = torch.load(
-                os.path.join(salsanext.train.base_model,
-                             "SalsaNext_valid_best"),
-                map_location=lambda storage, loc: storage,
-            )
-            if self.model_old is not None:
-                self.print_save_to_log(f'load state dict to old model')
-                self.model_old.load_state_dict(
-                    w_dict['state_dict'], strict=True)
-
-        if os.path.exists(salsanext.train.novel_model):
-            w_dict = torch.load(
-                os.path.join(
-                    salsanext.train.novel_model, "SalsaNext_valid_best"),
-                map_location=lambda storage, loc: storage,
-            )
-            incompatibel_keys = self.model.load_state_dict(
-                w_dict['state_dict'], strict=False)
+                path,
+                map_location=lambda storage, loc: storage)
+            incompatibel_keys = model.load_state_dict(
+                w_dict['state_dict'], strict=is_strict)
             self.print_save_to_log(
-                f'load state dict to model, incompatibel_keys :\n{incompatibel_keys}')
+                f'load state dict from {path} to {model_name}, incompatibel_keys :\n{incompatibel_keys}')
+
+        def try_load_state_dict(path: str, model: torch.nn.Module, model_name: str, is_strict: bool = True):
+            if os.path.exists(path):
+                load_state_dict(path, model, model_name, is_strict)
+
+        if self.model_old is not None:
+            try_load_state_dict(
+                path=os.path.join(
+                    salsanext.train.base_model, "SalsaNext_valid_best"),
+                model=self.model_old, model_name="old model", is_strict=True)
+        try_load_state_dict(
+            path=os.path.join(
+                salsanext.train.novel_model, "SalsaNext_valid_best"),
+            model=self.model, model_name="new model", is_strict=False)
 
         self.tb_logger = Logger(os.path.join(self.log, "tb"))
 
