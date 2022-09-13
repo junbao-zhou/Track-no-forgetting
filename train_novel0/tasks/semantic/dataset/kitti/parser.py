@@ -355,6 +355,7 @@ def read_sample_file(json_file_name: str, sequences: List[str], sample_number: i
                    for seq, file in label_files]
     return scan_files, label_files
 
+
 def read_sample_file_txt(txt_file_name: str, sequences: List[str], sample_number: int = None):
     with open(txt_file_name, 'r') as f:
         lines = f.readlines()
@@ -363,10 +364,10 @@ def read_sample_file_txt(txt_file_name: str, sequences: List[str], sample_number
     if sample_number is not None and (sample_number < len(label_file_lines)):
         label_file_lines = random.sample(label_file_lines, sample_number)
 
-    scan_files = [line.split()[1]
-                  for line in label_file_lines]
-    label_files = [line.split()[2]
-                  for line in label_file_lines]
+    scan_files = [
+        line.split()[1] for line in label_file_lines]
+    label_files = [
+        line.split()[2] for line in label_file_lines]
     return scan_files, label_files
 
 
@@ -482,65 +483,66 @@ class Parser():
         self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
             self.label_frequencies)
 
-        if self.task_step > 0:
-            self.train_dataset = IncrementalSemanticKitti(
+        if not is_test:
+            if self.task_step > 0:
+                self.train_dataset = IncrementalSemanticKitti(
+                    root=self.root,
+                    sequences=self.train_sequences,
+                    labels=self.labels,
+                    color_map=self.color_map,
+                    learning_map=self.learning_map,
+                    learning_map_inv=self.learning_map_inv,
+                    # sensor=self.sensor,
+                    max_points=self.max_points,
+                    transform=True,
+                    gt=self.gt,
+                    sample_number=salsanext.train.sample_number,
+                    is_count_labels=True,
+                )
+                self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
+                    self.train_dataset.labels_frequencies)
+            else:
+                # Data loading code
+                self.train_dataset = SemanticKitti(
+                    root=self.root,
+                    sequences=self.train_sequences,
+                    labels=self.labels,
+                    color_map=self.color_map,
+                    learning_map=self.learning_map,
+                    learning_map_inv=self.learning_map_inv,
+                    # sensor=self.sensor,
+                    max_points=self.max_points,
+                    transform=True,
+                    gt=self.gt)
+
+            self.trainloader = torch.utils.data.DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=self.shuffle_train,
+                num_workers=dataset.workers,
+                drop_last=True)
+            assert len(self.trainloader) > 0
+            self.trainiter = iter(self.trainloader)
+
+            self.valid_dataset = SemanticKitti(
                 root=self.root,
-                sequences=self.train_sequences,
+                sequences=self.valid_sequences,
                 labels=self.labels,
                 color_map=self.color_map,
                 learning_map=self.learning_map,
                 learning_map_inv=self.learning_map_inv,
                 # sensor=self.sensor,
                 max_points=self.max_points,
-                transform=True,
-                gt=self.gt,
-                sample_number=salsanext.train.sample_number,
-                is_count_labels=True,
-            )
-            self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
-                self.train_dataset.labels_frequencies)
-        else:
-            # Data loading code
-            self.train_dataset = SemanticKitti(
-                root=self.root,
-                sequences=self.train_sequences,
-                labels=self.labels,
-                color_map=self.color_map,
-                learning_map=self.learning_map,
-                learning_map_inv=self.learning_map_inv,
-                # sensor=self.sensor,
-                max_points=self.max_points,
-                transform=True,
                 gt=self.gt)
 
-        self.trainloader = torch.utils.data.DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=self.shuffle_train,
-            num_workers=dataset.workers,
-            drop_last=True)
-        assert len(self.trainloader) > 0
-        self.trainiter = iter(self.trainloader)
-
-        self.valid_dataset = SemanticKitti(
-            root=self.root,
-            sequences=self.valid_sequences,
-            labels=self.labels,
-            color_map=self.color_map,
-            learning_map=self.learning_map,
-            learning_map_inv=self.learning_map_inv,
-            # sensor=self.sensor,
-            max_points=self.max_points,
-            gt=self.gt)
-
-        self.validloader = torch.utils.data.DataLoader(
-            self.valid_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=dataset.workers,
-            drop_last=True)
-        assert len(self.validloader) > 0
-        self.validiter = iter(self.validloader)
+            self.validloader = torch.utils.data.DataLoader(
+                self.valid_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=dataset.workers,
+                drop_last=True)
+            assert len(self.validloader) > 0
+            self.validiter = iter(self.validloader)
 
         if is_test and self.test_sequences:
             self.test_dataset = SemanticKitti(
