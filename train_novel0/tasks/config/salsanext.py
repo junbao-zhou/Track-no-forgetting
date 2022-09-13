@@ -52,8 +52,9 @@ class post:
     class KNN:
         use = True  # This parameter default is false
 
-        class params:
-            knn = 5
-            search = 5
-            sigma = 1.0
-            cutoff = 1.0
+        params = {
+            "knn" : 5,
+            "search" : 5,
+            "sigma" : 1.0,
+            "cutoff" : 1.0,
+        }
