@@ -116,6 +116,11 @@ class KnowledgeDistillationLoss(nn.Module):
         super().__init__()
         self.reduction = reduction
         self.alpha = alpha
+        print(
+            f"""
+{type(self).__name__} init | {self.reduction = } | {self.alpha = } 
+"""
+        )
 
     def forward(self, inputs, targets, mask=None):
         inputs = inputs.narrow(1, 0, targets.shape[1])
@@ -143,6 +148,11 @@ class UnbiasedKnowledgeDistillationLoss(nn.Module):
         super().__init__()
         self.reduction = reduction
         self.alpha = alpha
+        print(
+            f"""
+{type(self).__name__} init | {self.reduction = } | {self.alpha = } 
+"""
+        )
 
     def forward(self, inputs, targets, mask=None):
 
