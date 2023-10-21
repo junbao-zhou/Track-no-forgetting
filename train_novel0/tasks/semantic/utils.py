@@ -9,7 +9,7 @@ def str2bool(v):
     elif v.lower() in ('no', 'false', 'f', 'n'):
         return False
     else:
-        raise Error('Boolean expected')
+        raise Exception('Boolean expected')
 
 
 class Tee(object):
