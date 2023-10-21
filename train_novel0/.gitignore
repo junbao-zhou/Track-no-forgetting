@@ -7,3 +7,5 @@
 !*.yaml
 
 !tasks
+
+!*.sh
