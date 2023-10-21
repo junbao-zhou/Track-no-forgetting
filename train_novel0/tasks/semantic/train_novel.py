@@ -99,7 +99,7 @@ if __name__ == '__main__':
     )
 
     FLAGS, unparsed = parser.parse_known_args()
-    FLAGS.log = os.path.join(FLAGS.log, 'logs', datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + FLAGS.name)
+    FLAGS.log = os.path.join(FLAGS.log, 'logs', datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S-") + FLAGS.name)
 
     # print summary of what we will do
     print("----------")
