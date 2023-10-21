@@ -325,7 +325,7 @@ class Trainer():
 
     def print_save_to_log(self, message):
         print(message)
-        save_to_log(self.log, 'print.log', message)
+        # save_to_log(self.log, 'print.log', message)
 
     def init_evaluator(self):
         self.print_save_to_log(

@@ -28,7 +28,7 @@ from tasks.semantic.modules.SalsaNext import *
 #from tasks.semantic.modules.save_dataset_projected import *
 import math
 from decimal import Decimal
-from utils import str2bool
+from utils import str2bool, Tee
 
 def remove_exponent(d):
     return d.quantize(Decimal(1)) if d == d.to_integral() else d.normalize()
@@ -131,6 +131,7 @@ if __name__ == '__main__':
         print(e)
         print("Error creating log directory. Check permissions!")
         quit()
+    sys.stdout = Tee(os.path.join(FLAGS.log, "print.log"))
 
     # does model folder exist?
     if FLAGS.pretrained is not None:
