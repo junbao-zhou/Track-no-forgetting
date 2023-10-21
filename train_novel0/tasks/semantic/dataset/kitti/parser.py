@@ -85,7 +85,8 @@ def count_label_numbers(label_files, is_verbose=False):
     print(f"counting {len(label_files)} labels")
     for label_file in tqdm.tqdm(label_files):
         label = np.fromfile(label_file, dtype=np.int32)
-        values, counts = np.unique(label, return_counts=True)
+        sem_label = label & 0xFFFF
+        values, counts = np.unique(sem_label, return_counts=True)
         for i, v in enumerate(values):
             if v > 259:
                 continue
