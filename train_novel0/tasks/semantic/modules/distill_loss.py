@@ -93,6 +93,12 @@ class UnbiasedCrossEntropy(nn.Module):
         self.ignore_index = ignore_index
         self.old_cl = old_cl
         self.register_buffer('weight', weight)
+        print(
+            f"""
+{type(self).__name__} init | {self.reduction = } | {self.ignore_index = } | {self.old_cl = }
+{self.weight = }
+"""
+        )
 
     def forward(self, inputs, targets):
 
