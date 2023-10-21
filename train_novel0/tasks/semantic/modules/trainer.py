@@ -215,8 +215,6 @@ class Trainer():
             f'self.criterion : {self.criterion}, ignore_index : {self.criterion.ignore_index}')
         self.ls = Lovasz_softmax(
             ignore=None if len(self.ignore_classes) == 0 else self.ignore_classes[0]).to(self.device)
-        self.print_save_to_log(
-            f'self.lovasz.ignore : {self.ls.ignore}')
         if self.model_old is not None:
             self.print_save_to_log(
                 f'Distill Loss : {salsanext.train.loss.distill_name.__name__}')

@@ -142,6 +142,11 @@ class Lovasz_softmax(nn.Module):
         self.classes = classes
         self.per_image = per_image
         self.ignore = ignore
+        print(
+            f"""
+{type(self).__name__} init | {self.classes = } | {self.per_image = } | {self.ignore = }
+"""
+        )
 
     def forward(self, probas, labels):
         return lovasz_softmax(probas, labels, self.classes, self.per_image, self.ignore)
