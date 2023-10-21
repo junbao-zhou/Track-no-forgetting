@@ -156,6 +156,7 @@ if __name__ == '__main__':
 
     set_random_seed(FLAGS.manual_seed)
     # create trainer and start the training
+    torch.set_printoptions(linewidth=400)
     trainer = Trainer(
         # ARCH, DATA,
         datadir=FLAGS.dataset, logdir=FLAGS.log, path=None)
