@@ -6,7 +6,7 @@ import datetime
 import os
 import pathlib
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["KMP_WARNINGS"] = "FALSE"
 
 import shutil
 from shutil import copyfile, copytree
