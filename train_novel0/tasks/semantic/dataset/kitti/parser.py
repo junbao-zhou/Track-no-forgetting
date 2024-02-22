@@ -518,7 +518,7 @@ class Parser():
 
             self.trainloader = torch.utils.data.DataLoader(
                 self.train_dataset,
-                batch_size=self.batch_size,
+                batch_size=min(len(self.train_dataset), self.batch_size),
                 shuffle=self.shuffle_train,
                 num_workers=dataset.workers,
                 drop_last=True)
