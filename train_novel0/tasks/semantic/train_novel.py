@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dataset', '-d',
         type=str,
-        default="/public/home/meijilin/dataset/semantickitti",
+        default="/public/home/zhoujunbao/datasets/semantickitti",
         help='Dataset to train with. No Default',
     )
     parser.add_argument(
