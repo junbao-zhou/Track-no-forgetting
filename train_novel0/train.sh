@@ -1,8 +1,9 @@
 #!/bin/bash
 
-COMMAND="python ./tasks/semantic/train_novel.py $@"
-
-echo $COMMAND
+name="test"
 
 devices="1"
-CUDA_VISIBLE_DEVICES=${devices} $COMMAND
+CUDA_VISIBLE_DEVICES=${devices} python ./tasks/semantic/train_novel.py \
+    -n ${name} \
+    -l "debug" \
+
