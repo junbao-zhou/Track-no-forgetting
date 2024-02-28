@@ -42,6 +42,12 @@ if __name__ == '__main__':
         help='Directory to put the predictions. Default: ~/logs/date+time'
     )
     parser.add_argument(
+        '--name', '-n',
+        type=str,
+        default="novel",
+        help='If you want to give an aditional discriptive name'
+    )
+    parser.add_argument(
         '--model', '-m',
         type=str,
         required=False,
