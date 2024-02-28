@@ -69,11 +69,12 @@ class User():
                     salsanext.train.task_step,
                 )
                 self.model = IncrementalSalsaNext(nclasses)
+            state_dict_path = os.path.join(modeldir, "SalsaNext_valid_best")
             w_dict = torch.load(
-                os.path.join(modeldir, "SalsaNext_valid_best"),
+                state_dict_path,
                 map_location=lambda storage, loc: storage,
             )
-            print(f"load state dict from {modeldir}")
+            print(f"load state dict from {state_dict_path}")
             # self.model = nn.DataParallel(self.model)
             self.model.load_state_dict(w_dict['state_dict'], strict=True)
 
