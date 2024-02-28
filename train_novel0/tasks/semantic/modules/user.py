@@ -47,12 +47,13 @@ class User():
 
         from tasks.semantic.dataset.kitti import parser
         # get the data
+        is_test = (self.split == "test")
         self.parser = parser.Parser(
             root=self.datadir,
             # datargs=self.DATA,
             # archargs=self.ARCH,
             batch_size=salsanext.train.batch_size_per_GPU,
-            is_test=False,
+            is_test=is_test,
             gt=True,
             shuffle_train=True,
         )
