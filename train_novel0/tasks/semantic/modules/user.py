@@ -60,7 +60,8 @@ class User():
             self.model = IncrementalSalsaNext(nclasses)
         w_dict = torch.load(os.path.join(modeldir, "SalsaNext_valid_best"),
                             map_location=lambda storage, loc: storage)
-        self.model = nn.DataParallel(self.model)
+        print(f"load state dict from {modeldir}")
+        # self.model = nn.DataParallel(self.model)
         self.model.load_state_dict(w_dict['state_dict'], strict=True)
 
     # use knn post processing?
