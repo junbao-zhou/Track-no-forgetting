@@ -6,7 +6,7 @@ import pathlib
 import subprocess
 import datetime
 import yaml
-from shutil import copyfile
+from shutil import copyfile, copytree
 import os
 import shutil
 import __init__ as booger
@@ -72,7 +72,7 @@ if __name__ == '__main__':
              str(splits) + '. Defaults to %(default)s',
     )
     FLAGS, unparsed = parser.parse_known_args()
-    FLAGS.log = os.path.join(FLAGS.log, 'infer_logs', datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    FLAGS.log = os.path.join(FLAGS.log, 'infer_logs', datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S-") + FLAGS.name)
 
     # print summary of what we will do
     print("----------")
@@ -142,6 +142,18 @@ if __name__ == '__main__':
         print("model folder exists! Using model from %s" % (FLAGS.model))
     else:
         print("model folder doesnt exist! Can't infer...")
+        quit()
+
+    # copy all files to log folder (to remember what we did, and make inference
+    # easier). Also, standardize name to be able to open it later
+    try:
+        print(f"Copying files to {FLAGS.log} for further reference.")
+        copytree(
+            current_file_path.parent.parent, os.path.join(FLAGS.log, "codes"),
+            ignore=lambda src, children: [child for child in children if '__pycache__' in child])
+    except Exception as e:
+        print(e)
+        print("Error copying files, check permissions. Exiting...")
         quit()
 
     # create user and infer dataset
