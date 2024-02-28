@@ -363,6 +363,7 @@ class Trainer():
                 'info': self.info,
                 'scheduler': self.scheduler.state_dict(),
             }
+            state['scheduler']['initial_scheduler']._scale_fn_ref = None
             save_checkpoint(state, self.log, suffix="")
 
             if self.info['train_iou'] > self.info['best_train_iou']:
