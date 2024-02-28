@@ -21,12 +21,14 @@ from tasks.semantic.modules.SalsaNextAdf import *
 from tasks.semantic.postproc.KNN import KNN
 from tasks.semantic.task import get_per_task_classes
 
+from tasks.config import salsanext
+
 
 class User():
-  def __init__(self, ARCH, DATA, datadir, logdir, modeldir,split,uncertainty,mc=30):
+  def __init__(self, datadir, logdir, modeldir,split,uncertainty,mc=30):
     # parameters
-    self.ARCH = ARCH
-    self.DATA = DATA
+    # self.ARCH = ARCH
+    # self.DATA = DATA
     self.datadir = datadir
     self.logdir = logdir
     self.modeldir = modeldir
@@ -34,16 +36,18 @@ class User():
     self.split = split
     self.mc = mc
 
-    # get the data
-    parserModule = imp.load_source("parserModule",
-                                   booger.TRAIN_PATH + '/tasks/semantic/dataset/' +
-                                   self.DATA["name"] + '/parser.py')
 
-    self.parser = parserModule.Parser(root=self.datadir,
-                                      datargs=self.DATA,
-                                      archargs=self.ARCH,
-                                      gt=True,
-                                      shuffle_train=False)
+    from tasks.semantic.dataset.kitti import parser
+    # get the data
+    self.parser = parser.Parser(
+        root=self.datadir,
+        # datargs=self.DATA,
+        # archargs=self.ARCH,
+        batch_size=salsanext.train.batch_size_per_GPU,
+        is_test=False,
+        gt=True,
+        shuffle_train=True,
+    )
 
     # concatenate the encoder and the head
     with torch.no_grad():
@@ -51,7 +55,8 @@ class User():
         if self.uncertainty:
             self.model = SalsaNextUncertainty(self.parser.get_n_classes())
         else:
-            nclasses = get_per_task_classes(self.ARCH["train"]["task_name"], self.ARCH["train"]['task_step'])
+            nclasses = get_per_task_classes(
+                salsanext.train.task_name, salsanext.train.task_step)
             self.model = IncrementalSalsaNext(nclasses)
         w_dict = torch.load(os.path.join(modeldir, "SalsaNext_valid_best"),
                             map_location=lambda storage, loc: storage)
@@ -60,8 +65,8 @@ class User():
 
     # use knn post processing?
     self.post = None
-    if self.ARCH["post"]["KNN"]["use"]:
-      self.post = KNN(self.ARCH["post"]["KNN"]["params"],
+    if salsanext.post.KNN.use:
+      self.post = KNN(salsanext.post.KNN.params,
                       self.parser.get_n_classes())
 
     # GPU?

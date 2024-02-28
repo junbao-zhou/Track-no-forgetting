@@ -94,25 +94,8 @@ if __name__ == '__main__':
     #    subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).strip()))
     print("----------\n")
 
-    # open arch config file
-    try:
-        print("Opening arch config file from %s" % FLAGS.model)
-        ARCH = yaml.safe_load(open(FLAGS.model + "/arch_cfg.yaml", 'r'))
-    except Exception as e:
-        print(e)
-        print("Error opening arch yaml file.")
-        quit()
-
-    # open data config file
-    try:
-        print("Opening data config file from %s" % FLAGS.model)
-        DATA = yaml.safe_load(open(FLAGS.model + "/data_cfg.yaml", 'r'))
-    except Exception as e:
-        print(e)
-        print("Error opening data yaml file.")
-        quit()
-
     # create log folder
+    from tasks.config import semantic_kitti
     try:
         if os.path.isdir(FLAGS.log):
             shutil.rmtree(FLAGS.log)
@@ -163,5 +146,12 @@ if __name__ == '__main__':
         quit()
 
     # create user and infer dataset
-    user = User(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.model,FLAGS.split,FLAGS.uncertainty,FLAGS.monte_carlo)
+    user = User(
+        FLAGS.dataset,
+        FLAGS.log,
+        FLAGS.model,
+        FLAGS.split,
+        FLAGS.uncertainty,
+        FLAGS.monte_carlo,
+    )
     user.infer()
