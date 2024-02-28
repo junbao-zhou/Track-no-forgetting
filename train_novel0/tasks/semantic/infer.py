@@ -26,6 +26,9 @@ def str2bool(v):
 current_file_path = pathlib.Path(__file__)
 project_folder = current_file_path.parent.parent.parent.resolve()
 
+def sequence_to_string(seq: int):
+    return f'{int(seq):02d}'
+
 if __name__ == '__main__':
     splits = ["train", "valid", "test"]
     parser = argparse.ArgumentParser("./infer.py")
@@ -101,21 +104,13 @@ if __name__ == '__main__':
             shutil.rmtree(FLAGS.log)
         os.makedirs(FLAGS.log)
         os.makedirs(os.path.join(FLAGS.log, "sequences"))
-        for seq in DATA["split"]["train"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("train", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
-        for seq in DATA["split"]["valid"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("valid", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
-        for seq in DATA["split"]["test"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("test", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
+        for seq in eval(f"semantic_kitti.split.{FLAGS.split}"):
+            seq = sequence_to_string(seq)
+            sequence_folder = os.path.join(FLAGS.log, "sequences", seq)
+            sequence_prediction_folder = os.path.join(sequence_folder, "predictions")
+            print(f"Make directory {FLAGS.split}  {sequence_folder}")
+            os.makedirs(sequence_folder)
+            os.makedirs(sequence_prediction_folder)
     except Exception as e:
         print(e)
         print("Error creating log directory. Check permissions!")
