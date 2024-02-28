@@ -11,7 +11,6 @@ import os
 import shutil
 import __init__ as booger
 
-os.environ["CUDA_VISIBLE_DEVICES"]="4,5,6,7"
 
 from tasks.semantic.modules.user import *
 def str2bool(v):
