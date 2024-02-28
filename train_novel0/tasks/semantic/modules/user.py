@@ -22,6 +22,7 @@ from tasks.semantic.postproc.KNN import KNN
 from tasks.semantic.task import get_per_task_classes
 
 from tasks.config import salsanext
+import tqdm
 
 
 class User():
@@ -159,7 +160,7 @@ class User():
         with torch.no_grad():
             end = time.time()
 
-            for i, (proj_in, proj_mask, _, _, path_seq, path_name, p_x, p_y, proj_range, unproj_range, _, _, _, _, npoints) in enumerate(loader):
+            for i, (proj_in, proj_mask, _, _, path_seq, path_name, p_x, p_y, proj_range, unproj_range, _, _, _, _, npoints) in enumerate(tqdm.tqdm(loader)):
                 print(f"epoch : {i}")
                 # first cut to rela size (batch size one allows it)
                 npoints = npoints.min()
