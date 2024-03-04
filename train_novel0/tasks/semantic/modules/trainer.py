@@ -30,6 +30,8 @@ from tasks.config.semantic_kitti import learning_ignore
 from common.sync_batchnorm.replicate import DataParallelWithCallback
 
 from typing import List
+from peft import LoraConfig, get_peft_model
+
 
 def print_model_params(model: nn.Module):
     for param_name, param in model.named_parameters():
@@ -186,6 +188,52 @@ class Trainer():
                 param.requires_grad = False
             for _, param in self.model.logits.named_parameters():
                 param.requires_grad = True
+        if salsanext.train.is_lora:
+            rank_patterns = []
+            for mod_idx, rank in zip(
+                [1, 2, 3],
+                [64, 64, 32],
+            ):
+                rank_patterns.append({
+                    f'upBlock{mod_idx}.conv{i}' : rank for i in range(1,5)
+                })
+            for mod_idx, rank in zip(
+                [4, 5],
+                [128, 128],
+            ):
+                rank_patterns.append({
+                    f'resBlock{mod_idx}.conv{i}' : rank for i in range(1,6)
+                })
+            rank_pattern = {}
+            for d in rank_patterns:
+                rank_pattern.update(d)
+            print(f"{rank_pattern = }")
+            lora_config = LoraConfig(
+                r=128,
+                lora_alpha=128,
+                target_modules=list(rank_pattern.keys()),
+                lora_dropout=0.1,
+                bias="lora_only",
+                rank_pattern=rank_pattern,
+                alpha_pattern=rank_pattern,
+            )
+            lora_model = get_peft_model(self.model, lora_config)
+
+            unfreeze_modules: List[nn.Module] = [lora_model.base_model.model.logits]
+            for mod_name, mod in lora_model.base_model.model.named_modules():
+                if ('upBlock' in mod_name) and ('bn' in mod_name):
+                    unfreeze_modules.append(mod)
+                if ('upBlock4' in mod_name):
+                    unfreeze_modules.append(mod)
+                if ('resBlock4' in mod_name) and ('bn' in mod_name):
+                    unfreeze_modules.append(mod)
+                if ('resBlock5' in mod_name) and ('bn' in mod_name):
+                    unfreeze_modules.append(mod)
+            for unfreeze_mod in unfreeze_modules:
+                for _, param in unfreeze_mod.named_parameters():
+                    param.requires_grad = True
+
+            self.model = lora_model
 
         print(f"{self.model = }")
         print_model_params(self.model)

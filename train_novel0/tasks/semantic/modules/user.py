@@ -23,6 +23,8 @@ from tasks.semantic.task import get_per_task_classes
 
 from tasks.config import salsanext
 import tqdm
+from peft import LoraConfig, get_peft_model
+from matplotlib import pyplot as plt
 
 
 class User():
@@ -34,6 +36,7 @@ class User():
         split,
         uncertainty,
         mc=30,
+        is_lora=False,
     ):
         # parameters
         # self.ARCH = ARCH
@@ -69,6 +72,37 @@ class User():
                     salsanext.train.task_step,
                 )
                 self.model = IncrementalSalsaNext(nclasses)
+                if is_lora:
+                    rank_patterns = []
+                    for mod_idx, rank in zip(
+                        [1, 2, 3],
+                        [64, 64, 32],
+                    ):
+                        rank_patterns.append({
+                            f'upBlock{mod_idx}.conv{i}': rank for i in range(1, 5)
+                        })
+                    for mod_idx, rank in zip(
+                        [4, 5],
+                        [128, 128],
+                    ):
+                        rank_patterns.append({
+                            f'resBlock{mod_idx}.conv{i}': rank for i in range(1, 6)
+                        })
+                    rank_pattern = {}
+                    for d in rank_patterns:
+                        rank_pattern.update(d)
+                    print(f"{rank_pattern = }")
+                    lora_config = LoraConfig(
+                        r=128,
+                        lora_alpha=128,
+                        target_modules=list(rank_pattern.keys()),
+                        lora_dropout=0.1,
+                        bias="lora_only",
+                        rank_pattern=rank_pattern,
+                        alpha_pattern=rank_pattern,
+                    )
+                    lora_model = get_peft_model(self.model, lora_config)
+                    self.model = lora_model
             state_dict_path = os.path.join(modeldir, "SalsaNext_valid_best")
             w_dict = torch.load(
                 state_dict_path,

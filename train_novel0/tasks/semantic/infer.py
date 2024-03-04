@@ -70,6 +70,11 @@ if __name__ == '__main__':
         type=int, default=30,
         help='Number of samplings per scan'
     )
+    parser.add_argument(
+        '--is_lora',
+        action='store_true',
+        default=False,
+    )
 
 
     parser.add_argument(
@@ -148,5 +153,6 @@ if __name__ == '__main__':
         FLAGS.split,
         FLAGS.uncertainty,
         FLAGS.monte_carlo,
+        is_lora=FLAGS.is_lora,
     )
     user.infer()
