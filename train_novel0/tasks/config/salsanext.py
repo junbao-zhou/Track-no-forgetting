@@ -28,6 +28,8 @@ class train:
     task_step = 1
     sample_number = 50
 
+    is_freeze_backbone = False
+
     class loss:
         # nll loss weight = 1 / (class_frequencies + epsilon_w)
         epsilon_w = 0.001

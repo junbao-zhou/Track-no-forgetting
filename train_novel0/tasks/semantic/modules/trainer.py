@@ -29,6 +29,11 @@ from tasks.config import salsanext
 from tasks.config.semantic_kitti import learning_ignore
 from common.sync_batchnorm.replicate import DataParallelWithCallback
 
+from typing import List
+
+def print_model_params(model: nn.Module):
+    for param_name, param in model.named_parameters():
+        print(f"{param_name} : {param.requires_grad = }")
 
 def keep_variance_fn(x):
     return x + 1e-3
@@ -175,6 +180,15 @@ class Trainer():
             path=os.path.join(
                 salsanext.train.novel_model, "SalsaNext_valid_best"),
             model=self.model, model_name="new model", is_strict=False)
+
+        if salsanext.train.is_freeze_backbone:
+            for _, param in self.model.named_parameters():
+                param.requires_grad = False
+            for _, param in self.model.logits.named_parameters():
+                param.requires_grad = True
+
+        print(f"{self.model = }")
+        print_model_params(self.model)
 
         self.tb_logger = Logger(os.path.join(self.log, "tb"))
 
