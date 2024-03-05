@@ -9,7 +9,11 @@ import torch.nn.functional as F
 
 
 class ResContextBlock(nn.Module):
-    def __init__(self, in_filters, out_filters):
+    def __init__(
+        self,
+        in_filters,
+        out_filters,
+    ):
         super(ResContextBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_filters, out_filters,
                                kernel_size=(1, 1), stride=1)
@@ -24,7 +28,10 @@ class ResContextBlock(nn.Module):
         self.act3 = nn.LeakyReLU()
         self.bn2 = nn.BatchNorm2d(out_filters)
 
-    def forward(self, x):
+    def forward(
+        self,
+        x,
+    ):
 
         shortcut = self.conv1(x)
         shortcut = self.act1(shortcut)
@@ -42,8 +49,16 @@ class ResContextBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_filters, out_filters, dropout_rate, kernel_size=(3, 3), stride=1,
-                 pooling=True, drop_out=True):
+    def __init__(
+        self,
+        in_filters,
+        out_filters,
+        dropout_rate,
+        kernel_size=(3, 3),
+        stride=1,
+        pooling=True,
+        drop_out=True,
+    ):
         super(ResBlock, self).__init__()
         self.pooling = pooling
         self.drop_out = drop_out
@@ -77,7 +92,10 @@ class ResBlock(nn.Module):
         else:
             self.dropout = nn.Dropout2d(p=dropout_rate)
 
-    def forward(self, x):
+    def forward(
+        self,
+        x,
+    ):
         shortcut = self.conv1(x)
         shortcut = self.act1(shortcut)
 
@@ -116,7 +134,13 @@ class ResBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    def __init__(self, in_filters, out_filters, dropout_rate, drop_out=True):
+    def __init__(
+        self,
+        in_filters,
+        out_filters,
+        dropout_rate,
+        drop_out=True,
+    ):
         super(UpBlock, self).__init__()
         self.drop_out = drop_out
         self.in_filters = in_filters
@@ -147,7 +171,11 @@ class UpBlock(nn.Module):
 
         self.dropout3 = nn.Dropout2d(p=dropout_rate)
 
-    def forward(self, x, skip):
+    def forward(
+        self,
+        x,
+        skip,
+    ):
         upA = nn.PixelShuffle(2)(x)
         if self.drop_out:
             upA = self.dropout1(upA)
@@ -179,7 +207,10 @@ class UpBlock(nn.Module):
 
 
 class SalsaNext(nn.Module):
-    def __init__(self, nclasses):
+    def __init__(
+        self,
+        nclasses,
+    ):
         super(SalsaNext, self).__init__()
         self.nclasses = nclasses
         print(10*'-', '\n',
@@ -203,10 +234,16 @@ class SalsaNext(nn.Module):
 
         self.init_logits(nclasses)
 
-    def init_logits(self, n_classes):
+    def init_logits(
+        self,
+        n_classes,
+    ):
         self.logits = nn.Conv2d(32, n_classes, kernel_size=(1, 1))
 
-    def encode_decode(self, x):
+    def encode_decode(
+        self,
+        x,
+    ):
         downCntx = self.downCntx(x)
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
@@ -223,7 +260,10 @@ class SalsaNext(nn.Module):
         up1e = self.upBlock4(up2e, down0b)
         return up1e
 
-    def forward(self, x):
+    def forward(
+        self,
+        x,
+    ):
         up1e = self.encode_decode(x)
         logits = self.logits(up1e)
 
@@ -233,14 +273,24 @@ class SalsaNext(nn.Module):
 
 
 class IncrementalSalsaNext(SalsaNext):
-    def __init__(self, nclasses):
+    def __init__(
+        self,
+        nclasses,
+    ):
         super(IncrementalSalsaNext, self).__init__(nclasses)
 
-    def init_logits(self, n_classes):
+
+    def init_logits(
+        self,
+        n_classes,
+    ):
         self.logits = nn.ModuleList(
             [nn.Conv2d(32, n, kernel_size=(1, 1)) for n in n_classes])
 
-    def init_new_classifier(self, device):
+    def init_new_classifier(
+        self,
+        device,
+    ):
         cls = self.logits[-1]
         imprinting_w = self.logits[0].weight[0]
         bkg_bias = self.logits[0].bias[0]
@@ -255,7 +305,10 @@ class IncrementalSalsaNext(SalsaNext):
 
         self.logits[0].bias[0].data.copy_(new_bias.squeeze(0))
 
-    def forward(self, x):
+    def forward(
+        self,
+        x,
+    ):
         decode_result = self.encode_decode(x)
 
         out = []
