@@ -1,6 +1,6 @@
 name: Linting and testing
 
-on: [push]
+# on: [push]
 
 jobs:
   build-linux:
