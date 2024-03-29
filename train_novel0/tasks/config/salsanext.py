@@ -26,7 +26,7 @@ class train:
     novel_model = "/public/home/meijilin/zhoujunbao/SalsaNext/train_novel0/logs/2022-09-03-03:16:13base"
     task_name = "16-4"
     task_step = 1
-    sample_number = 50
+    sample_number = 2
 
     is_lora = False
     is_freeze_backbone = False
