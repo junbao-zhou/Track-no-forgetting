@@ -759,12 +759,13 @@ class Parser():
 
 
 if __name__ == "__main__":
-    parser = Parser(
-        root="/public/home/meijilin/dataset/semantickitti",
-        # datargs=self.DATA,
-        # archargs=self.ARCH,
-        batch_size=32,
-        is_test=False,
-        gt=True,
-        shuffle_train=True,
-    )
+    pass
+    # parser = Parser(
+    #     root="/public/home/meijilin/dataset/semantickitti",
+    #     # datargs=self.DATA,
+    #     # archargs=self.ARCH,
+    #     batch_size=32,
+    #     is_test=False,
+    #     gt=True,
+    #     shuffle_train=True,
+    # )
