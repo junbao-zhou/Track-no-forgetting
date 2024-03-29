@@ -31,7 +31,7 @@ class train:
     extend_gap = 15
     is_generate_extend_frame = False
 
-    is_lora = False
+    is_lora = True
     is_freeze_backbone = False
 
     class loss:
