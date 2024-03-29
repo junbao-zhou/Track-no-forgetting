@@ -7,6 +7,8 @@ import torch
 from torch.utils.data import Dataset
 from common.laserscan import LaserScan, SemLaserScan
 import torchvision
+import pathlib
+from tasks.config import salsanext
 
 import torch
 import math
@@ -77,6 +79,7 @@ def my_collate(batch):
 
     return data, project_mask, proj_labels
 
+TRACK_OUTPUT_DIR = "./aot-benchmark/demo_new_output"
 
 def count_label_numbers(label_files, is_verbose=False):
     if is_verbose:
@@ -257,11 +260,20 @@ class SemanticKitti(Dataset):
         # open and obtain scan
         scan.open_scan(scan_file)
         if self.gt:
-            scan.open_label(label_file)
-            # map unused classes to used classes (also for projection)
-            scan.sem_label = self.map(scan.sem_label, self.learning_map)
-            scan.proj_sem_label = self.map(
-                scan.proj_sem_label, self.learning_map)
+            if label_file.startswith(TRACK_OUTPUT_DIR):
+                origin_class_map_to_16_4 = np.array([
+                    0, 16, 1, 2, 3, 4, 17, 18, 19, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                ], dtype=np.int32)
+
+                scan.open_label(label_file)
+                scan.sem_label = origin_class_map_to_16_4[scan.sem_label]
+                scan.proj_sem_label = origin_class_map_to_16_4[scan.proj_sem_label]
+            else:
+                scan.open_label(label_file)
+                # map unused classes to used classes (also for projection)
+                scan.sem_label = self.map(scan.sem_label, self.learning_map)
+                scan.proj_sem_label = self.map(
+                    scan.proj_sem_label, self.learning_map)
 
         # make a tensor of the uncompressed data (with the max num points)
         unproj_n_points = scan.points.shape[0]
@@ -386,8 +398,10 @@ class IncrementalSemanticKitti(SemanticKitti):
                  transform=False,  # send ground truth
                  sample_number: int = None,
                  is_count_labels=False,
+                 extend_num=0,
                  ):
         self.sample_number = sample_number
+        self.extend_num = extend_num
         super(IncrementalSemanticKitti, self).__init__(
             root=root,
             sequences=sequences,
@@ -419,6 +433,32 @@ class IncrementalSemanticKitti(SemanticKitti):
                           for scan in scan_files]
             label_files = [os.path.join(self.root, label)
                            for label in label_files]
+            track_total_num = 15 * 10 + 1
+            while True:
+                print(f"{scan_files = }")
+                pass_check = True
+                for scanfile in scan_files:
+                    scanfile = pathlib.Path(scanfile)
+                    scanfile_stem = scanfile.stem
+                    scanfile_stem = int(scanfile_stem)
+                    scanfile_seq = scanfile.parents[1].stem
+                    scanfile_seq_dir = f"/public/home/zhoujunbao/datasets/semantickitti/sequences/{scanfile_seq}/labels"
+                    scanfile_seq_len = len(os.listdir(scanfile_seq_dir))
+                    print(f"{scanfile_seq_len = }")
+                    if (scanfile_stem < track_total_num) or ((scanfile_seq_len - scanfile_stem) < track_total_num):
+                        pass_check = False
+                        break
+                if pass_check:
+                    break
+                else:
+                    print(f"Resample !")
+                    scan_files, label_files = read_sample_file_txt(
+                        txt_file_path, self.sequences, self.sample_number)
+                    scan_files = [os.path.join(self.root, scan)
+                                for scan in scan_files]
+                    label_files = [os.path.join(self.root, label)
+                                for label in label_files]
+
 
             # count_label_numbers(label_files, is_verbose=False)
             if name not in samples:
@@ -431,6 +471,61 @@ class IncrementalSemanticKitti(SemanticKitti):
         # sort for correspondance
         self.scan_files.sort()
         self.label_files.sort()
+
+        print(f"sampled {self.scan_files = }")
+        print(f"sampled {self.label_files = }")
+
+        if self.extend_num > 0:
+            # os.system(f"rm -r {track_output_dir}")
+            track_total_num = salsanext.train.extend_gap * self.extend_num + 1
+            
+            all_extend_scan_files = []
+            all_extend_label_files = []
+            for scanfile in self.scan_files:
+                scanfile = pathlib.Path(scanfile)
+                print(f"{scanfile = }")
+                start_index = int(scanfile.stem)
+                sequence_name = scanfile.parents[1].stem
+                print(f"{sequence_name = }")
+
+                track_frame_index = list(range(start_index, start_index+salsanext.train.extend_gap * self.extend_num+1, salsanext.train.extend_gap))
+                track_frame_index.remove(start_index)
+                track_frame_index += list(range(start_index, start_index-salsanext.train.extend_gap * self.extend_num-1, -salsanext.train.extend_gap))
+                track_frame_index.remove(start_index)
+
+                print(f"{track_frame_index = }")
+                track_frame_index = [str(idx).zfill(6) for idx in track_frame_index]
+                print(f"{track_frame_index = }")
+
+                extend_scan_files = [
+                    os.path.join(self.root, sequence_name, SCAN_FOLDER, f"{idx}.bin")
+                    for idx in track_frame_index
+                ]
+                print(f"{extend_scan_files = }")
+                all_extend_scan_files += extend_scan_files
+
+                extend_label_files = [
+                    os.path.join(TRACK_OUTPUT_DIR, sequence_name, f"start_at_{start_index}", "pred_sem_labels_only_novel", f"{idx}.label")
+                    for idx in track_frame_index
+                ]
+                print(f"{extend_label_files = }")
+                all_extend_label_files += extend_label_files
+
+                if salsanext.train.is_generate_extend_frame:
+                    os.system(
+                        f"""
+    cd aot-benchmark;
+    python tools/demo_kitti.py --seq_name {sequence_name} --start_index {start_index} --max_track_frame_num {track_total_num}
+    """)
+                    os.system(
+                        f"""
+    cd aot-benchmark;
+    python tools/demo_kitti.py --seq_name {sequence_name} --start_index {start_index} --max_track_frame_num {track_total_num} --is_reverse_seq
+    """)
+            self.scan_files += all_extend_scan_files
+            self.label_files += all_extend_label_files
+            print(f"After extend {self.scan_files = }")
+            print(f"After extend {self.label_files = }")
 
 
 class Parser():
@@ -499,6 +594,7 @@ class Parser():
                     gt=self.gt,
                     sample_number=salsanext.train.sample_number,
                     is_count_labels=True,
+                    extend_num=salsanext.train.extend_num,
                 )
                 self.xentropy_label_frequencies = self.label_frequencies_to_xentropy(
                     self.train_dataset.labels_frequencies)

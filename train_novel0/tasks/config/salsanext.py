@@ -27,6 +27,9 @@ class train:
     task_name = "16-4"
     task_step = 1
     sample_number = 2
+    extend_num = 10
+    extend_gap = 15
+    is_generate_extend_frame = False
 
     is_lora = False
     is_freeze_backbone = False
