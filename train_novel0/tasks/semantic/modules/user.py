@@ -55,7 +55,7 @@ class User():
             root=self.datadir,
             # datargs=self.DATA,
             # archargs=self.ARCH,
-            batch_size=salsanext.train.batch_size_per_GPU,
+            batch_size=1,
             is_test=is_test,
             gt=True,
             shuffle_train=True,
